@@ -1,0 +1,35 @@
+# Web Framework & Server
+fastapi==0.109.0
+uvicorn==0.27.0
+starlette==0.35.0
+
+# HTTP Client
+httpx==0.26.0
+requests==2.31.0
+
+# Data Validation & Serialization
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database
+aiosqlite==0.19.0
+
+# Date/Time Utilities
+python-dateutil==2.8.2
+
+# Async I/O
+aiofiles==23.2.1
+
+# Logging & Monitoring
+python-json-logger==2.0.7
+
+# Development/Testing (optional)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.12.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Production Deployment (optional)
+gunicorn==21.2.0
+cloudflare==1.14.0
