@@ -34,6 +34,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Explicitly tell it NOT to look for a lock file for Wrangler itself
-          wranglerVersion: '3' 
+          # Pin Wrangler major version to v3 for consistent deploy behavior
+          wranglerVersion: '3'
           command: pages deploy . --project-name=showmethevillain
