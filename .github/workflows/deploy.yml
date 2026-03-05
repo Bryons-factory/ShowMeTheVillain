@@ -8,19 +8,21 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # 1. Deploy the Worker API
-      - name: Deploy Worker
+      - name: Deploy Heatmap Frontend (Pages)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: deploy ./villain-api/src/entry.py --name villain-api
-
-      # 2. Build & Deploy the Frontend
-      - name: Deploy Frontend
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # Points specifically to your frontend folder
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Force the "Pages" command to look inside the frontend folder
           command: pages deploy ./frontend --project-name=showmethevillain
+
+      - name: Deploy Villain Data API (Worker)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # This deploys the actual backend logic
+          command: deploy ./worker/index.py --name showmethevillain-api
