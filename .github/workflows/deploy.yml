@@ -16,6 +16,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+<<<<<<< Updated upstream
           # Force the "Pages" command to look inside the frontend folder
           command: pages deploy ./frontend --project-name=showmethevillain
 
@@ -26,3 +27,6 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # This deploys the actual backend logic
           command: deploy ./worker/index.py --name showmethevillain-api
+=======
+          command: pages deploy ./frontend --project-name=showmethevillain
+>>>>>>> Stashed changes
