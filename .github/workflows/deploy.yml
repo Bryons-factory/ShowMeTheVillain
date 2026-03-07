@@ -25,13 +25,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Force the "Pages" command to look inside the frontend folder
-          command: pages deploy ./frontend --project-name=showmethevillain
+          # The typo match! This will now successfully find your Pages project
+          command: pages deploy ./frontend --project-name=showmethevillian
 
       - name: Deploy Villain Data API (Worker)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # This deploys the actual backend logic
-          command: deploy ./frontend/entry.py --name showmethevillain
+          # IMPORTANT: Make sure this points to wherever your entry.py file lives!
+          # If it is in the main folder, use ./entry.py
+          command: deploy ./entry.py --name showmethevillain
