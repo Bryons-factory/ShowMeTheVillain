@@ -20,7 +20,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Node.js (ensure npm available)
+      - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -35,7 +35,6 @@ jobs:
         run: |
           wrangler pages deploy ./frontend --project-name=showmethevillian
 
-      # THE FIX: We dynamically build the exact configuration Cloudflare demands
       - name: Generate strict wrangler.toml
         run: |
           echo 'name = "showmethevillain"' > wrangler.toml
@@ -47,6 +46,5 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        # We run a totally clean deploy. It will automatically read the TOML file above.
         run: |
           wrangler deploy
