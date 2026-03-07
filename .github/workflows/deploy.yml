@@ -32,5 +32,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # This command is now simple because the settings moved to wrangler.toml
+          # This tells the Action: "Go into the frontend folder first!"
+          workingDirectory: 'frontend'
           command: deploy
