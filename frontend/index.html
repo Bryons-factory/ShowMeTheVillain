@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ShowMeTheVillain Tracker</title>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #villain-map { width: 100vw; height: 100vh; }
+        #status { position: absolute; top: 10px; left: 10px; z-index: 1000; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+
+    <div id="status">📡 Fetching threat data...</div>
+    <div id="villain-map"></div>
+
+    <script>
+        // 2. Fetch data from your Cloudflare Worker URL
+        const apiUrl = "https://showmethevillain.tloveseework.workers.dev";
+
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('status').innerText = `Tracking ${data.length} active threats`;
+
+                // Extract arrays for Plotly (equivalent to pandas columns)
+                const lats = data.map(v => v.lat);
+                const lons = data.map(v => v.lon);
+                const intensities = data.map(v => v.intensity);
+                const names = data.map(v => v.name);
+
+                // 3. Build the Plotly Map Data
+                const plotData = [{
+                    type: 'densitymapbox',
+                    lat: lats,
+                    lon: lons,
+                    z: intensities,
+                    hovertext: names,
+                    hoverinfo: 'text',
+                    radius: 20
+                }];
+
+                // 4. Configure the Map Layout
+                const layout = {
+                    mapbox: {
+                        style: 'open-street-map',
+                        center: { lat: 44.5191, lon: -88.0198 }, // Centered on your data
+                        zoom: 10
+                    },
+                    margin: { l: 0, r: 0, t: 0, b: 0 } // Remove borders
+                };
+
+                // Render the map!
+                Plotly.newPlot('villain-map', plotData, layout);
+            })
+            .catch(error => {
+                document.getElementById('status').innerText = "⚠️ Error connecting to satellite feed.";
+                console.error("Error fetching data:", error);
+            });
+    </script>
+</body>
+</html>

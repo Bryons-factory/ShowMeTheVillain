@@ -1,37 +1,37 @@
-name: Deploy to Cloudflare Pages
+name: Deploy ShowMeTheVillain
 
 on:
   push:
+    branches:
+      - main
+      - frontend-workers-setup # Added so it triggers on your current PR branch!
+  pull_request:
     branches:
       - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
-      deployments: write
+      deployments: write # Explicit permission needed for Cloudflare Pages
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build project
-        run: npm run build
-
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy Heatmap Frontend (Pages)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=showmethevillain
+          # The typo match! This will now successfully find your Pages project
+          command: pages deploy ./frontend --project-name=showmethevillian
+
+      - name: Deploy Villain Data API (Worker)
+          uses: cloudflare/wrangler-action@v3
+          with:
+            apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            # The flags at the end turn on the Python engine!
+            command: deploy ./entry.py --name showmethevillain --compatibility-date=2026-03-06 --compatibility-flags=python_workers
