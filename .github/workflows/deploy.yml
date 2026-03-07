@@ -7,7 +7,7 @@ on:
       - frontend-workers-setup # Added so it triggers on your current PR branch!
   pull_request:
     branches:
-      - main 
+      - main
 
 jobs:
   deploy:
@@ -35,4 +35,4 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # IMPORTANT: Make sure this points to wherever your entry.py file lives!
           # If it is in the main folder, use ./entry.py
-          command: deploy ./entry.py --name showmethevillain
+          command: deploy ./entry.py --name showmethevillain --compatibility-date=2026-03-06 --compatibility-flags=python_workers
