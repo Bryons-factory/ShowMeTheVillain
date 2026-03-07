@@ -34,4 +34,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # This deploys the actual backend logic
-          command: deploy ./worker/index.py --name showmethevillain
+          command: deploy ./frontend/entry.py --name showmethevillain
