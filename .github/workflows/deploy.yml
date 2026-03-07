@@ -35,9 +35,18 @@ jobs:
         run: |
           wrangler pages deploy ./frontend --project-name=showmethevillian
 
+      # THE FIX: We dynamically build the exact configuration Cloudflare demands
+      - name: Generate strict wrangler.toml
+        run: |
+          echo 'name = "showmethevillain"' > wrangler.toml
+          echo 'main = "frontend/entry.py"' >> wrangler.toml
+          echo 'compatibility_date = "2026-03-06"' >> wrangler.toml
+          echo 'compatibility_flags = ["python_workers"]' >> wrangler.toml
+
       - name: Deploy Villain Data API (Worker)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # We run a totally clean deploy. It will automatically read the TOML file above.
         run: |
-          wrangler deploy --compatibility-flags=python_workers --compatibility-date=2026-03-06 --name showmethevillain ./frontend/entry.py
+          wrangler deploy
