@@ -5,7 +5,7 @@ import requests
 
 def get_villain_map():
     # 1. Fetch data from your Cloudflare Worker URL
-    response = requests.get("https://showmethevillian.tloveseework.workers.dev")
+    response = requests.get("https://showmethevillain.tloveseework.workers.dev")
     df = pd.DataFrame(response.json())
 
     # 2. Build the Plotly Map
