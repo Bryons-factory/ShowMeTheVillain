@@ -7,7 +7,7 @@ on:
       - frontend-workers-setup # Added so it triggers on your current PR branch!
   pull_request:
     branches:
-      - main
+      - main 
 
 jobs:
   deploy:
