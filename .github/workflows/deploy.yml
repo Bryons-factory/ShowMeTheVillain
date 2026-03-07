@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - frontend-workers-setup # Added so it triggers on your current PR branch!
   pull_request:
     branches:
       - main
@@ -25,13 +24,12 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # The typo match! This will now successfully find your Pages project
-          command: pages deploy ./frontend --project-name=showmethevillian
+          command: pages deploy ./frontend --project-name=showmethevillain
 
       - name: Deploy Villain Data API (Worker)
-          uses: cloudflare/wrangler-action@v3
-          with:
-            apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-            accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-            # The flags at the end turn on the Python engine!
-            command: deploy ./entry.py --name showmethevillain --compatibility-date=2026-03-06 --compatibility-flags=python_workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # The flags at the end turn on the Python engine!
+          command: deploy ./frontend/entry.py --name showmethevillain --compatibility-date=2026-03-06 --compatibility-flags=python_workers

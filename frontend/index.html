@@ -20,7 +20,12 @@
         const apiUrl = "https://showmethevillain.tloveseework.workers.dev";
 
         fetch(apiUrl)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 document.getElementById('status').innerText = `Tracking ${data.length} active threats`;
 

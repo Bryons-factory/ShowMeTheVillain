@@ -5,8 +5,17 @@ import requests
 
 def get_villain_map():
     # 1. Fetch data from your Cloudflare Worker URL
-    response = requests.get("https://showmethevillain.tloveseework.workers.dev")
-    df = pd.DataFrame(response.json())
+    response = requests.get("https://showmethevillain.tloveseework.workers.dev", timeout=10)
+
+    if response.status_code != 200:
+        raise RuntimeError(f"Failed to fetch villain data: HTTP {response.status_code}")
+
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise RuntimeError("Failed to parse villain data as JSON") from exc
+
+    df = pd.DataFrame(data)
 
     # 2. Build the Plotly Map
     fig = px.density_mapbox(
