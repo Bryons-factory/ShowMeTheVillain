@@ -32,6 +32,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # This tells the Action: "Go into the frontend folder first!"
-          workingDirectory: 'frontend'
-          command: deploy
+          command: deploy ./frontend/entry.py --name showmethevillain --compatibility-date=2026-03-06 --compatibility-flags=python_workers
