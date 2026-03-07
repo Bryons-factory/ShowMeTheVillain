@@ -32,6 +32,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # This forces a newer version of Wrangler that correctly parses Python flags
           wranglerVersion: "4.71.0"
-          command: deploy ./frontend/entry.py --name showmethevillain --compatibility-date=2026-03-06 --compatibility-flags=python_workers
+          # THE FIX: Flags MUST come before the file path to prevent the parser bug.
+          command: deploy --compatibility-flags=python_workers --compatibility-date=2026-03-06 --name showmethevillain ./frontend/entry.py
