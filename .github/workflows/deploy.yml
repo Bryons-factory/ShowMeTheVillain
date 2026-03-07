@@ -32,5 +32,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # This command MUST be aligned correctly to trigger the Python signal
-          command: deploy ./entry.py --name showmethevillain --compatibility-date=2026-03-06 --compatibility-flags=python_workers
+          # This command is now simple because the settings moved to wrangler.toml
+          command: deploy
