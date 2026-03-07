@@ -20,21 +20,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Node.js (ensure npm available)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install Wrangler Globally
-        # This ensures GitHub doesn't have to "guess" which version to use
         run: npm install -g wrangler@4.71.0
 
       - name: Deploy Heatmap Frontend (Pages)
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./frontend --project-name=showmethevillian
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler pages deploy ./frontend --project-name=showmethevillian
 
       - name: Deploy Villain Data API (Worker)
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # THE MASTER FIX: Use the manually installed version and lead with flags
-          command: deploy --compatibility-flags=python_workers --compatibility-date=2026-03-06 --name showmethevillain ./frontend/entry.py
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler deploy --compatibility-flags=python_workers --compatibility-date=2026-03-06 --name showmethevillain ./frontend/entry.py
