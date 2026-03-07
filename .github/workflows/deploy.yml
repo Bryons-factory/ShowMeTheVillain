@@ -20,6 +20,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Wrangler Globally
+        # This ensures GitHub doesn't have to "guess" which version to use
+        run: npm install -g wrangler@4.71.0
+
       - name: Deploy Heatmap Frontend (Pages)
         uses: cloudflare/wrangler-action@v3
         with:
@@ -32,6 +36,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.71.0"
-          # THE FIX: Flags MUST come before the file path to prevent the parser bug.
+          # THE MASTER FIX: Use the manually installed version and lead with flags
           command: deploy --compatibility-flags=python_workers --compatibility-date=2026-03-06 --name showmethevillain ./frontend/entry.py
