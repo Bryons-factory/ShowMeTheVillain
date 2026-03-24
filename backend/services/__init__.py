@@ -1,14 +1,19 @@
-"""
-services/ package initialization
-Exports all service classes for easy importing
-"""
+import os
 
-from .cache_service import CacheService
-from .phishing_service import PhishingService
-from .analytics_service import AnalyticsService
+def __init__(self):
+    """Initialize database connection."""
+    self.connection_string = config.CLOUDFLARE_D1_CONNECTION
 
-__all__ = [
-    "CacheService",
-    "PhishingService", 
-    "AnalyticsService"
-]
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    raw_db_path = config.DATABASE_PATH
+
+    if os.path.isabs(raw_db_path):
+        self.db_path = raw_db_path
+    else:
+        self.db_path = os.path.abspath(os.path.join(base_dir, raw_db_path))
+
+    os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+
+    self._initialize_schema()
+
+    logger.info(f"Database initialized | Path: {self.db_path}")
