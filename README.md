@@ -27,7 +27,8 @@ Global phishing threat tracker: a **Plotly density map** with a **top filter bar
 ```bash
 cd backend
 pip install -r requirements.txt
-py -3 main.py
+python3 main.py  # or: python main.py
+# On Windows, you can also use: py -3 main.py
 # or: uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 

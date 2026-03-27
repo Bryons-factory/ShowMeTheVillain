@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import os
@@ -42,29 +41,17 @@ VILLAIN_DATA = [
 ]
 
 
-def _proxy_backend_sync(url: str) -> str:
-    """Blocking HTTP GET; run via asyncio.to_thread from async fetch."""
-    from urllib.error import HTTPError, URLError
-    from urllib.request import Request, urlopen
+async def _proxy_backend(url: str) -> str:
+    """Async HTTP GET using the Workers runtime fetch API (non-blocking, no threads)."""
+    from js import fetch as js_fetch
 
-    req = Request(url, headers={"User-Agent": "ShowMeTheVillain-Worker"})
     try:
-        with urlopen(req, timeout=15) as resp:
-            code = resp.getcode()
-            body = resp.read().decode("utf-8")
-    except HTTPError as e:
-        snippet = ""
-        try:
-            snippet = e.read().decode("utf-8", errors="replace")[:300]
-        except Exception:
-            pass
-        raise RuntimeError(f"upstream HTTP {e.code}: {snippet or e.reason}") from e
-    except URLError as e:
-        raise RuntimeError(f"upstream connection error: {e.reason}") from e
-
-    if code >= 400:
-        raise RuntimeError(f"upstream HTTP {code}")
-    return body
+        resp = await js_fetch(url, method="GET")
+    except Exception as e:
+        raise RuntimeError(f"fetch failed for {url}: {e}") from e
+    if not resp.ok:
+        raise RuntimeError(f"upstream HTTP {resp.status} from {url}")
+    return await resp.text()
 
 
 class Default(WorkerEntrypoint):
@@ -89,7 +76,7 @@ class Default(WorkerEntrypoint):
         backend_url = (os.environ.get("BACKEND_MAP_URL") or "").strip()
         if backend_url:
             try:
-                body = await asyncio.to_thread(_proxy_backend_sync, backend_url)
+                body = await _proxy_backend(backend_url)
                 return Response(body, headers=cors_json)
             except Exception as e:
                 logger.exception("BACKEND_MAP_URL proxy failed")
