@@ -56,14 +56,60 @@ HOW TO USE:
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from datetime import datetime
 
+from pydantic import ValidationError
+
 from api_client import PhishStatsClient
-from models import PhishingIncident, HeatmapData, ThreatStatistics
+from models import PhishingIncident, HeatmapData, ThreatStatistics, MapPoint
 from config import config
 
 logger = logging.getLogger(__name__)
+
+_THREAT_INTENSITY = {"critical": 10, "high": 8, "medium": 5, "low": 3, "unknown": 4}
+
+
+def _incident_to_map_point(incident: PhishingIncident) -> Optional[MapPoint]:
+    """Build a Plotly map row from a validated incident. Returns None if mapping fails."""
+    # PhishingIncident requires lat/lon, but guard in case of bad instances
+    try:
+        lat = float(incident.latitude)
+        lon = float(incident.longitude)
+    except (TypeError, ValueError) as e:
+        logger.warning(
+            "Skipping incident id=%s: invalid coordinates (%s)",
+            getattr(incident, "id", None),
+            e,
+        )
+        return None
+
+    intensity = _THREAT_INTENSITY.get(incident.threat_level, 4)
+    if incident.company:
+        label = incident.company
+    elif incident.url:
+        label = incident.url[:80]
+    else:
+        label = "Unknown"
+
+    try:
+        return MapPoint(
+            lat=lat,
+            lon=lon,
+            intensity=intensity,
+            name=label,
+            threat_level=incident.threat_level,
+            company=incident.company,
+            country=incident.country,
+            isp=incident.isp,
+        )
+    except ValidationError as e:
+        logger.warning(
+            "Skipping incident id=%s: MapPoint validation failed: %s",
+            getattr(incident, "id", None),
+            e,
+        )
+        return None
 
 
 class PhishingService:
@@ -244,6 +290,33 @@ class PhishingService:
         except Exception as e:
             logger.error(f"✗ Error filtering incidents: {e}")
             raise
+
+    async def get_map_points(
+        self,
+        threat_level: Optional[str] = None,
+        company: Optional[str] = None,
+        country: Optional[str] = None,
+        isp: Optional[str] = None,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> List[MapPoint]:
+        """
+        Incidents as Plotly density map rows (lat, lon, intensity, filter dimensions).
+        """
+        incidents = await self.get_filtered_incidents(
+            threat_level=threat_level,
+            company=company,
+            country=country,
+            isp=isp,
+            limit=limit,
+            offset=offset,
+        )
+        out: List[MapPoint] = []
+        for inc in incidents:
+            pt = _incident_to_map_point(inc)
+            if pt is not None:
+                out.append(pt)
+        return out
     
     async def get_threat_statistics(self) -> ThreatStatistics:
         """

@@ -78,6 +78,8 @@ class Settings:
     # Settings for frontend-backend communication
     # ──────────────────────────────────────────────────────────────────────────
     FRONTEND_ORIGIN: str = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+    # Comma-separated extra allowed origins (e.g. https://project.pages.dev)
+    FRONTEND_ORIGINS: str = os.getenv("FRONTEND_ORIGINS", "")
     BACKEND_HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
     BACKEND_PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
     

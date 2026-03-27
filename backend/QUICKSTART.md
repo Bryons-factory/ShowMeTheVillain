@@ -96,6 +96,7 @@ overview = await analytics.get_threat_overview()
 The "front door" - what the frontend actually calls.
 
 ```
+GET /api/phishing/map-points?limit=500
 GET /api/phishing/heatmap?threat_level=high
 GET /api/phishing/filtered?company=PayPal
 GET /api/analytics/top-regions?limit=5
@@ -176,7 +177,8 @@ curl http://localhost:8000/api/phishing/refresh
 
 ### Phishing Data
 - `GET /api/phishing/` - All incidents (with limit, offset, threat_level)
-- `GET /api/phishing/heatmap` - Coordinates for map
+- `GET /api/phishing/map-points` - Plotly map rows (lat, lon, intensity, filters)
+- `GET /api/phishing/heatmap` - Coordinates for legacy heatmap (`HeatmapData`)
 - `GET /api/phishing/filtered` - Advanced filters (company, country, isp)
 - `GET /api/phishing/stats` - Threat statistics
 - `GET /api/phishing/refresh` - Force API refresh

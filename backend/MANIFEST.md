@@ -102,7 +102,8 @@ Total documentation: **~1500 lines**
 - **Purpose**: HTTP endpoints for phishing data
 - **What it does**:
   - GET /api/phishing/ - all incidents
-  - GET /api/phishing/heatmap - coordinates for map
+  - GET /api/phishing/map-points - Plotly map rows (filters + intensity)
+  - GET /api/phishing/heatmap - legacy heatmap coordinates
   - GET /api/phishing/filtered - advanced filtering
   - GET /api/phishing/stats - threat statistics
   - GET /api/phishing/refresh - force cache refresh

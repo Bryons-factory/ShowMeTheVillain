@@ -2,62 +2,302 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- api-base: FastAPI origin (no trailing slash) OR Worker URL for data-source=worker.
+         In production this must be set to an HTTPS URL to avoid mixed-content blocking when the page is served over HTTPS. -->
+    <meta name="api-base" content="http://127.0.0.1:8000">
+    <!-- data-source: "api" -> GET {api-base}/api/phishing/map-points ; "worker" -> GET {api-base}/ (Worker stub) -->
+    <meta name="data-source" content="api">
     <title>ShowMeTheVillain Tracker</title>
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        #villain-map { width: 100vw; height: 100vh; }
-        #status { position: absolute; top: 10px; left: 10px; z-index: 1000; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; font-family: system-ui, Segoe UI, Arial, sans-serif; }
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-height: 0;
+        }
+        .filter-bar {
+            flex: 0 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 16px;
+            padding: 10px 14px;
+            background: #1a1d23;
+            color: #e8eaed;
+            border-bottom: 1px solid #333;
+            z-index: 10;
+        }
+        .filter-bar label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #9aa0a6;
+        }
+        .filter-bar select {
+            min-width: 140px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #2d3139;
+            color: #e8eaed;
+            font-size: 14px;
+        }
+        .filter-bar select:focus {
+            outline: 2px solid #5c9ce6;
+            outline-offset: 1px;
+        }
+        #status {
+            margin-left: auto;
+            font-size: 13px;
+            color: #bdc1c6;
+            max-width: 100%;
+        }
+        #status.error { color: #f28b82; }
+        .map-wrap {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+        #villain-map {
+            width: 100%;
+            height: 100%;
+        }
+        #empty-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            font-size: 16px;
+            color: #5f6368;
+            background: rgba(255,255,255,0.85);
+        }
+        #empty-overlay.visible { display: flex; }
     </style>
 </head>
 <body>
-
-    <div id="status">📡 Fetching threat data...</div>
-    <div id="villain-map"></div>
+    <div class="app">
+        <header class="filter-bar" role="toolbar" aria-label="Map filters">
+            <label for="filter-threat">Threat
+                <select id="filter-threat" aria-label="Filter by threat level"></select>
+            </label>
+            <label for="filter-company">Target
+                <select id="filter-company" aria-label="Filter by target company"></select>
+            </label>
+            <label for="filter-country">Country
+                <select id="filter-country" aria-label="Filter by country"></select>
+            </label>
+            <label for="filter-isp">ISP
+                <select id="filter-isp" aria-label="Filter by ISP"></select>
+            </label>
+            <div id="status" role="status">Loading threat data…</div>
+        </header>
+        <div class="map-wrap">
+            <div id="villain-map" aria-label="Threat density map"></div>
+            <div id="empty-overlay" aria-live="polite">No threats match the selected filters.</div>
+        </div>
+    </div>
 
     <script>
-        // 2. Fetch data from your Cloudflare Worker URL
-        const apiUrl = "https://showmethevillain.tloveseework.workers.dev";
+        (function () {
+            const MAP_ID = 'villain-map';
+            const PLOTLY_CONFIG = { responsive: true, displaylogo: false };
+            const statusEl = document.getElementById('status');
+            const emptyOverlay = document.getElementById('empty-overlay');
 
-        fetch(apiUrl)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('status').innerText = `Tracking ${data.length} active threats`;
+            function metaContent(name, fallback) {
+                const el = document.querySelector('meta[name="' + name + '"]');
+                return (el && el.content && el.content.trim()) ? el.content.trim() : fallback;
+            }
 
-                // Extract arrays for Plotly (equivalent to pandas columns)
-                const lats = data.map(v => v.lat);
-                const lons = data.map(v => v.lon);
-                const intensities = data.map(v => v.intensity);
-                const names = data.map(v => v.name);
+            function getApiBase() {
+                if (typeof window.__API_BASE__ === 'string' && window.__API_BASE__.trim()) {
+                    return window.__API_BASE__.trim().replace(/\/$/, '');
+                }
+                return metaContent('api-base', 'http://127.0.0.1:8000').replace(/\/$/, '');
+            }
 
-                // 3. Build the Plotly Map Data
-                const plotData = [{
+            function getDataSource() {
+                return metaContent('data-source', 'api').toLowerCase();
+            }
+
+            function buildDataUrl() {
+                const base = getApiBase();
+                if (getDataSource() === 'worker') {
+                    return base;
+                }
+                return base + '/api/phishing/map-points?limit=800';
+            }
+
+            function uniqSorted(values) {
+                return Array.from(new Set(values.filter(Boolean))).sort(function (a, b) {
+                    return String(a).localeCompare(String(b));
+                });
+            }
+
+            function fillSelect(id, values, allLabel) {
+                const sel = document.getElementById(id);
+                sel.innerHTML = '';
+                const optAll = document.createElement('option');
+                optAll.value = 'all';
+                optAll.textContent = allLabel;
+                sel.appendChild(optAll);
+                values.forEach(function (v) {
+                    const o = document.createElement('option');
+                    o.value = v;
+                    o.textContent = v;
+                    sel.appendChild(o);
+                });
+            }
+
+            function displayCompany(row) {
+                return row.company || 'Unknown';
+            }
+            function displayCountry(row) {
+                return row.country || 'Unknown';
+            }
+            function displayIsp(row) {
+                return row.isp || 'Unknown';
+            }
+
+            function buildFilterOptions(rows) {
+                fillSelect('filter-threat', uniqSorted(rows.map(function (r) { return r.threat_level; })), 'All levels');
+                fillSelect('filter-company', uniqSorted(rows.map(displayCompany)), 'All targets');
+                fillSelect('filter-country', uniqSorted(rows.map(displayCountry)), 'All countries');
+                fillSelect('filter-isp', uniqSorted(rows.map(displayIsp)), 'All ISPs');
+            }
+
+            function readFilters() {
+                return {
+                    threat: document.getElementById('filter-threat').value,
+                    company: document.getElementById('filter-company').value,
+                    country: document.getElementById('filter-country').value,
+                    isp: document.getElementById('filter-isp').value
+                };
+            }
+
+            function applyFilters(rows, f) {
+                return rows.filter(function (r) {
+                    if (f.threat !== 'all' && r.threat_level !== f.threat) return false;
+                    if (f.company !== 'all' && displayCompany(r) !== f.company) return false;
+                    if (f.country !== 'all' && displayCountry(r) !== f.country) return false;
+                    if (f.isp !== 'all' && displayIsp(r) !== f.isp) return false;
+                    return true;
+                });
+            }
+
+            function rowsToPlotData(rows) {
+                return [{
                     type: 'densitymapbox',
-                    lat: lats,
-                    lon: lons,
-                    z: intensities,
-                    hovertext: names,
+                    lat: rows.map(function (r) { return r.lat; }),
+                    lon: rows.map(function (r) { return r.lon; }),
+                    z: rows.map(function (r) { return r.intensity; }),
+                    hovertext: rows.map(function (r) { return r.name; }),
                     hoverinfo: 'text',
                     radius: 20
                 }];
+            }
 
-                // 4. Configure the Map Layout
-                const layout = {
+            function defaultCenter(rows) {
+                if (!rows.length) return { lat: 20, lon: 0, zoom: 2 };
+                var sumLat = 0, sumLon = 0;
+                rows.forEach(function (r) { sumLat += r.lat; sumLon += r.lon; });
+                return {
+                    lat: sumLat / rows.length,
+                    lon: sumLon / rows.length,
+                    zoom: rows.length === 1 ? 10 : 4
+                };
+            }
+
+            var plotInitialized = false;
+
+            function updateMap(allRows) {
+                var f = readFilters();
+                var filtered = applyFilters(allRows, f);
+                var total = allRows.length;
+                var n = filtered.length;
+
+                emptyOverlay.classList.toggle('visible', n === 0);
+
+                statusEl.classList.remove('error');
+                statusEl.textContent = n === total
+                    ? 'Tracking ' + total + ' active threats (all shown)'
+                    : 'Tracking ' + total + ' active threats (' + n + ' shown)';
+
+                var c = defaultCenter(filtered.length ? filtered : allRows);
+                var layout = {
                     mapbox: {
                         style: 'open-street-map',
-                        center: { lat: 44.5191, lon: -88.0198 }, // Centered on your data
-                        zoom: 10
+                        center: { lat: c.lat, lon: c.lon },
+                        zoom: c.zoom
                     },
-                    margin: { l: 0, r: 0, t: 0, b: 0 } // Remove borders
+                    margin: { l: 0, r: 0, t: 0, b: 0 }
                 };
 
-                // Render the map!
-                Plotly.newPlot('villain-map', plotData, layout);
-            })
-            .catch(error => {
-                document.getElementById('status').innerText = "⚠️ Error connecting to satellite feed.";
-                console.error("Error fetching data:", error);
-            });
+                if (plotInitialized && document.getElementById(MAP_ID) && document.getElementById(MAP_ID).layout) {
+                    var L = document.getElementById(MAP_ID).layout;
+                    if (L && L.mapbox) {
+                        layout.mapbox.center = L.mapbox.center;
+                        layout.mapbox.zoom = L.mapbox.zoom;
+                    }
+                }
+
+                var plotData;
+                if (n === 0) {
+                    plotData = [{
+                        type: 'scattermapbox',
+                        lat: [],
+                        lon: [],
+                        mode: 'markers',
+                        marker: { size: 8 }
+                    }];
+                } else {
+                    plotData = rowsToPlotData(filtered);
+                }
+
+                if (!plotInitialized) {
+                    Plotly.newPlot(MAP_ID, plotData, layout, PLOTLY_CONFIG);
+                    plotInitialized = true;
+                } else {
+                    Plotly.react(MAP_ID, plotData, layout, PLOTLY_CONFIG);
+                }
+            }
+
+            function wireFilters(allRows) {
+                ['filter-threat', 'filter-company', 'filter-country', 'filter-isp'].forEach(function (id) {
+                    document.getElementById(id).addEventListener('change', function () {
+                        updateMap(allRows);
+                    });
+                });
+            }
+
+            var dataUrl = buildDataUrl();
+            fetch(dataUrl)
+                .then(function (response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (!Array.isArray(data)) throw new Error('Expected JSON array');
+                    var allRows = data;
+                    buildFilterOptions(allRows);
+                    wireFilters(allRows);
+                    updateMap(allRows);
+                })
+                .catch(function (error) {
+                    statusEl.classList.add('error');
+                    statusEl.textContent = 'Could not load threat data. Check api-base / data-source meta and that the API is running.';
+                    console.error(error);
+                });
+        })();
     </script>
 </body>
 </html>

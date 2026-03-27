@@ -40,7 +40,7 @@ External Systems:
 ### Key Principle
 **Your frontend is 100% agnostic to API complexity.**
 
-Frontend: "Give me heatmap data"  
+Frontend: "Give me map points for Plotly" (`GET /api/phishing/map-points`) or legacy heatmap (`GET /api/phishing/heatmap`)  
 Backend: "Done! (And I handled caching, rate limits, validation, filtering, etc)"
 
 ---
@@ -113,6 +113,7 @@ Backend: "Done! (And I handled caching, rate limits, validation, filtering, etc)
 ### Phishing Data
 ```
 GET /api/phishing/
+GET /api/phishing/map-points
 GET /api/phishing/heatmap
 GET /api/phishing/filtered
 GET /api/phishing/stats
@@ -240,6 +241,7 @@ The "business brain" of the application.
 
 ```python
 # Core methods:
+await phishing_service.get_map_points(limit=500)
 await phishing_service.get_heatmap_data(threat_level="high")
 await phishing_service.get_filtered_incidents(company="PayPal")
 await phishing_service.get_threat_statistics()
@@ -259,6 +261,7 @@ await analytics_service.get_most_targeted_companies(limit=10)
 The "front door" - HTTP endpoints.
 
 ```
+GET /api/phishing/map-points
 GET /api/phishing/heatmap
 GET /api/analytics/overview
 ```
@@ -277,7 +280,19 @@ Glues everything together.
 
 ## Data Flow Example
 
-### Frontend: "Give me heatmap data for critical threats"
+### Frontend: "Give me Plotly map rows (filters + intensity)"
+
+```
+Frontend calls: GET /api/phishing/map-points?limit=500
+
+1. main.py receives request
+2. routes/phishing.py → phishing_service.get_map_points(...)
+3. Same cache/API path as other endpoints; rows mapped to MapPoint JSON
+
+Frontend receives: [{ lat, lon, intensity, name, threat_level, company, country, isp }, ...]
+```
+
+### Frontend: "Give me heatmap data for critical threats" (legacy)
 
 ```
 Frontend calls: GET /api/phishing/heatmap?threat_level=critical
@@ -323,7 +338,7 @@ Settings flow down through layers:
 - Invalid data auto-rejected
 
 ### 5. Frontend Agnosticism
-- Frontend calls `/api/phishing/heatmap`
+- Primary map UI calls `/api/phishing/map-points`; legacy heatmap uses `/api/phishing/heatmap`
 - Backend handles complexity
 - Frontend shows the data
 
