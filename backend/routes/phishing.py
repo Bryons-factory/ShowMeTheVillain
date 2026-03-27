@@ -36,16 +36,13 @@ API ENDPOINTS PROVIDED:
         - Query params: threat_level, limit
 
     GET /api/phishing/map-points
-        - Plotly map: array of points with lat, lon, intensity, filter fields
-        - Query params: threat_level, company, country, isp, limit, offset
+        - Plotly map: JSON array of { lat, lon, intensity, name, threat_level, company, country, isp }
+        - Query params: threat_level, company, country, isp, limit, offset (optional server-side filters;
+          use a higher limit when the browser filters client-side)
     
     GET /api/phishing/filtered
         - Get incidents with multiple filters
         - Query params: threat_level, company, country, isp, limit, offset
-
-    GET /api/phishing/map-points
-        - Plotly map: array of { lat, lon, intensity, name, threat_level, company, country, isp }
-        - Query params: same as filtered (optional server-side filter); use high limit for client-side filters
     
     GET /api/phishing/{id}
         - Get a single incident by ID
@@ -54,6 +51,7 @@ HOW TO USE:
     These endpoints are automatically registered with FastAPI in main.py
     
     Frontend can call:
+        - fetch('/api/phishing/map-points?limit=500')
         - fetch('/api/phishing/heatmap')
         - fetch('/api/phishing/?limit=100&threat_level=high')
         - fetch('/api/phishing/filtered?company=PayPal')
@@ -265,11 +263,13 @@ async def get_map_points(
     """
     try:
         logger.info(
-            "GET /api/phishing/map-points | threat=%s company=%s country=%s limit=%s",
+            "GET /api/phishing/map-points | threat=%s company=%s country=%s isp=%s limit=%s offset=%s",
             threat_level,
             company,
             country,
+            isp,
             limit,
+            offset,
         )
         points = await phishing_service.get_map_points(
             threat_level=threat_level,

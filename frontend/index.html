@@ -108,6 +108,7 @@
     <script>
         (function () {
             const MAP_ID = 'villain-map';
+            const PLOTLY_CONFIG = { responsive: true, displaylogo: false };
             const statusEl = document.getElementById('status');
             const emptyOverlay = document.getElementById('empty-overlay');
 
@@ -262,10 +263,10 @@
                 }
 
                 if (!plotInitialized) {
-                    Plotly.newPlot(MAP_ID, plotData, layout, { responsive: true, displaylogo: false });
+                    Plotly.newPlot(MAP_ID, plotData, layout, PLOTLY_CONFIG);
                     plotInitialized = true;
                 } else {
-                    Plotly.react(MAP_ID, plotData, layout, { responsive: true });
+                    Plotly.react(MAP_ID, plotData, layout, PLOTLY_CONFIG);
                 }
             }
 

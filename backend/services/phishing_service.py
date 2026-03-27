@@ -59,6 +59,8 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+from pydantic import ValidationError
+
 from api_client import PhishStatsClient
 from models import PhishingIncident, HeatmapData, ThreatStatistics, MapPoint
 from config import config
@@ -69,18 +71,31 @@ _THREAT_INTENSITY = {"critical": 10, "high": 8, "medium": 5, "low": 3, "unknown"
 
 
 def _incident_to_map_point(incident: PhishingIncident) -> Optional[MapPoint]:
-    """Build a Plotly map row from a validated incident (skips if coords missing)."""
+    """Build a Plotly map row from a validated incident. Returns None if mapping fails."""
+    # PhishingIncident requires lat/lon, but guard in case of bad instances
     try:
-        intensity = _THREAT_INTENSITY.get(incident.threat_level, 4)
-        if incident.company:
-            label = incident.company
-        elif incident.url:
-            label = incident.url[:80]
-        else:
-            label = "Unknown"
+        lat = float(incident.latitude)
+        lon = float(incident.longitude)
+    except (TypeError, ValueError) as e:
+        logger.warning(
+            "Skipping incident id=%s: invalid coordinates (%s)",
+            getattr(incident, "id", None),
+            e,
+        )
+        return None
+
+    intensity = _THREAT_INTENSITY.get(incident.threat_level, 4)
+    if incident.company:
+        label = incident.company
+    elif incident.url:
+        label = incident.url[:80]
+    else:
+        label = "Unknown"
+
+    try:
         return MapPoint(
-            lat=incident.latitude,
-            lon=incident.longitude,
+            lat=lat,
+            lon=lon,
             intensity=intensity,
             name=label,
             threat_level=incident.threat_level,
@@ -88,7 +103,12 @@ def _incident_to_map_point(incident: PhishingIncident) -> Optional[MapPoint]:
             country=incident.country,
             isp=incident.isp,
         )
-    except Exception:
+    except ValidationError as e:
+        logger.warning(
+            "Skipping incident id=%s: MapPoint validation failed: %s",
+            getattr(incident, "id", None),
+            e,
+        )
         return None
 
 

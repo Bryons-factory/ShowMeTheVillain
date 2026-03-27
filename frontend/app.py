@@ -7,7 +7,14 @@ import requests
 def get_villain_map():
     base = os.getenv("VILLAIN_API_BASE", "http://127.0.0.1:8000").rstrip("/")
     response = requests.get(f"{base}/api/phishing/map-points?limit=500", timeout=30)
-    df = pd.DataFrame(response.json())
+    response.raise_for_status()
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise RuntimeError(
+            "Failed to decode JSON from map-points API response"
+        ) from exc
+    df = pd.DataFrame(data)
 
     # 2. Build the Plotly Map
     fig = px.density_mapbox(

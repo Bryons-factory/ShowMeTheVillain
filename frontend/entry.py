@@ -1,6 +1,11 @@
-from workers import WorkerEntrypoint, Response
+import asyncio
 import json
+import logging
 import os
+
+from workers import WorkerEntrypoint, Response
+
+logger = logging.getLogger(__name__)
 
 # Demo points when FastAPI is unavailable; same shape as GET /api/phishing/map-points
 VILLAIN_DATA = [
@@ -37,6 +42,31 @@ VILLAIN_DATA = [
 ]
 
 
+def _proxy_backend_sync(url: str) -> str:
+    """Blocking HTTP GET; run via asyncio.to_thread from async fetch."""
+    from urllib.error import HTTPError, URLError
+    from urllib.request import Request, urlopen
+
+    req = Request(url, headers={"User-Agent": "ShowMeTheVillain-Worker"})
+    try:
+        with urlopen(req, timeout=15) as resp:
+            code = resp.getcode()
+            body = resp.read().decode("utf-8")
+    except HTTPError as e:
+        snippet = ""
+        try:
+            snippet = e.read().decode("utf-8", errors="replace")[:300]
+        except Exception:
+            pass
+        raise RuntimeError(f"upstream HTTP {e.code}: {snippet or e.reason}") from e
+    except URLError as e:
+        raise RuntimeError(f"upstream connection error: {e.reason}") from e
+
+    if code >= 400:
+        raise RuntimeError(f"upstream HTTP {code}")
+    return body
+
+
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
         if request.method == "OPTIONS":
@@ -50,29 +80,25 @@ class Default(WorkerEntrypoint):
                 },
             )
 
+        cors_json = {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+        }
+
         # Optional BFF: set BACKEND_MAP_URL to full URL e.g. https://api.example.com/api/phishing/map-points?limit=800
         backend_url = (os.environ.get("BACKEND_MAP_URL") or "").strip()
         if backend_url:
             try:
-                from urllib.request import Request, urlopen
-
-                req = Request(backend_url, headers={"User-Agent": "ShowMeTheVillain-Worker"})
-                with urlopen(req, timeout=15) as resp:
-                    body = resp.read().decode("utf-8")
-                return Response(
-                    body,
-                    headers={
-                        "Content-Type": "application/json",
-                        "Access-Control-Allow-Origin": "*",
-                    },
+                body = await asyncio.to_thread(_proxy_backend_sync, backend_url)
+                return Response(body, headers=cors_json)
+            except Exception as e:
+                logger.exception("BACKEND_MAP_URL proxy failed")
+                err = json.dumps(
+                    {"error": "backend_proxy_failed", "detail": str(e)}
                 )
-            except Exception:
-                pass
+                return Response(err, status=502, headers=cors_json)
 
         return Response(
             json.dumps(VILLAIN_DATA),
-            headers={
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-            },
+            headers=cors_json,
         )
