@@ -193,3 +193,34 @@ class FilterRequest(BaseModel):
     isp: Optional[str] = None
     limit: int = Field(default=100, ge=1, le=1000)
     offset: int = Field(default=0, ge=0)
+
+
+class MapPoint(BaseModel):
+    """
+    One point for the Plotly map (GET /api/phishing/map-points).
+
+    Separate from HeatmapData: includes per-point z (intensity), labels, and filter fields.
+    """
+
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
+    intensity: int = Field(..., ge=1, le=10)
+    name: str
+    threat_level: str
+    company: Optional[str] = None
+    country: Optional[str] = None
+    isp: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "lat": 40.7128,
+                "lon": -74.0060,
+                "intensity": 8,
+                "name": "PayPal",
+                "threat_level": "high",
+                "company": "PayPal",
+                "country": "United States",
+                "isp": "Example ISP",
+            }
+        }

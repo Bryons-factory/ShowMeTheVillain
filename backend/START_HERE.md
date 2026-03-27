@@ -309,7 +309,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 ❌ "Is the data valid?" - Models validate it
 ❌ "What do we return to frontend?" - Routes format it
 
-**Your frontend just calls `/api/phishing/heatmap` and gets a response.**
+**The hosted map uses `GET /api/phishing/map-points` (Plotly + filter bar).** `GET /api/phishing/heatmap` remains for simple `[[lat,lon], ...]` heatmaps.
 
 ---
 
@@ -341,33 +341,23 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 
 ---
 
-## Example: How Frontend Gets Heatmap
+## Example: How the map page gets data
 
 ```javascript
-// Frontend code (simple!)
-async function getHeatmap() {
+// ShowMeTheVillain index.html (Plotly density map + toolbar filters)
+async function getMapPoints() {
   const response = await fetch(
-    'http://localhost:8000/api/phishing/heatmap?threat_level=high'
+    'http://localhost:8000/api/phishing/map-points?limit=500'
   );
-  const data = await response.json();
-  
-  // data.coordinates = [[40.7128, -74.0060], [51.5074, -0.1278], ...]
-  // data.incident_count = 342
-  // data.last_updated = "2026-02-21T10:30:00Z"
-  
-  drawHeatmap(data.coordinates);
+  const rows = await response.json();
+  // rows[].lat, lon, intensity, name, threat_level, company, country, isp
+  return rows;
 }
 ```
 
-**Backend handles:**
-- Checking if cache has fresh data
-- Fetching from PhishStats if needed
-- Validating incident coordinates
-- Filtering by threat_level
-- Transforming to [[lat, lon], ...] format
-- Returning clean JSON
+**Backend handles:** cache, PhishStats fetch, validation, and mapping to `MapPoint` rows.
 
-**Frontend doesn't care about any of that!**
+**Legacy heatmap** (`HeatmapData` with `coordinates` only) is still `GET /api/phishing/heatmap`.
 
 ---
 
@@ -378,7 +368,7 @@ Before deploying, your team needs to:
 - [ ] Connect to Cloudflare D1 (update config.py)
 - [ ] Set environment variables (.env file)
 - [ ] Test all endpoints work
-- [ ] Verify CORS is configured correctly
+- [ ] Verify CORS is configured correctly (`FRONTEND_ORIGIN`, `FRONTEND_ORIGINS` for Pages)
 - [ ] Set up logging/monitoring
 - [ ] Configure API key for PhishStats (if required)
 - [ ] Test frontend-backend communication

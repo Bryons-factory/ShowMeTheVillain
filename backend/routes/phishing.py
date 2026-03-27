@@ -34,10 +34,18 @@ API ENDPOINTS PROVIDED:
     GET /api/phishing/heatmap
         - Get coordinates for heatmap visualization
         - Query params: threat_level, limit
+
+    GET /api/phishing/map-points
+        - Plotly map: array of points with lat, lon, intensity, filter fields
+        - Query params: threat_level, company, country, isp, limit, offset
     
     GET /api/phishing/filtered
         - Get incidents with multiple filters
         - Query params: threat_level, company, country, isp, limit, offset
+
+    GET /api/phishing/map-points
+        - Plotly map: array of { lat, lon, intensity, name, threat_level, company, country, isp }
+        - Query params: same as filtered (optional server-side filter); use high limit for client-side filters
     
     GET /api/phishing/{id}
         - Get a single incident by ID
@@ -54,11 +62,11 @@ HOW TO USE:
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, Query, HTTPException
 
 from services.phishing_service import PhishingService
-from models import PhishingIncident, HeatmapData
+from models import PhishingIncident, HeatmapData, MapPoint
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +231,57 @@ async def get_filtered_incidents(
         
     except Exception as e:
         logger.error(f"✗ Error in get_filtered_incidents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/phishing/map-points", response_model=List[MapPoint])
+async def get_map_points(
+    threat_level: Optional[str] = Query(None),
+    company: Optional[str] = Query(None),
+    country: Optional[str] = Query(None),
+    isp: Optional[str] = Query(None),
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Points for the ShowMeTheVillain Plotly map (densitymapbox).
+
+    Example:
+        GET /api/phishing/map-points?limit=200
+
+        Response:
+        [
+            {
+                "lat": 40.7128,
+                "lon": -74.0060,
+                "intensity": 8,
+                "name": "PayPal",
+                "threat_level": "high",
+                "company": "PayPal",
+                "country": "United States",
+                "isp": "ISP Name"
+            }
+        ]
+    """
+    try:
+        logger.info(
+            "GET /api/phishing/map-points | threat=%s company=%s country=%s limit=%s",
+            threat_level,
+            company,
+            country,
+            limit,
+        )
+        points = await phishing_service.get_map_points(
+            threat_level=threat_level,
+            company=company,
+            country=country,
+            isp=isp,
+            limit=limit,
+            offset=offset,
+        )
+        return points
+    except Exception as e:
+        logger.error(f"✗ Error in get_map_points: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

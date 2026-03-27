@@ -67,6 +67,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+def _cors_allow_origins():
+    """Merge primary origin, FRONTEND_ORIGINS (comma-separated), and local dev defaults."""
+    parts = []
+    if getattr(config, "FRONTEND_ORIGIN", None):
+        parts.append(config.FRONTEND_ORIGIN.strip())
+    extra = getattr(config, "FRONTEND_ORIGINS", "") or ""
+    parts.extend(x.strip() for x in extra.split(",") if x.strip())
+    parts.extend(
+        [
+            "http://localhost:3000",
+            "http://localhost:8000",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8000",
+            "http://localhost:8080",
+            "http://127.0.0.1:8080",
+        ]
+    )
+    seen = set()
+    out = []
+    for o in parts:
+        if o and o not in seen:
+            seen.add(o)
+            out.append(o)
+    return out
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # INITIALIZE FASTAPI APPLICATION
 # ──────────────────────────────────────────────────────────────────────────────
@@ -83,20 +110,16 @@ app = FastAPI(
 # CONFIGURE CORS (Cross-Origin Resource Sharing)
 # ──────────────────────────────────────────────────────────────────────────────
 # This allows the frontend to communicate with the backend
+_cors_origins = _cors_allow_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        config.FRONTEND_ORIGIN,
-        "http://localhost:3000",  # Local development
-        "http://localhost:8000",  # Same host testing
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
 )
 
-logger.info(f"CORS enabled for: {config.FRONTEND_ORIGIN}")
+logger.info("CORS allow_origins: %s", _cors_origins)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # REGISTER ROUTE MODULES
@@ -189,6 +212,7 @@ async def app_info():
             "phishing": {
                 "all": "/api/phishing/",
                 "heatmap": "/api/phishing/heatmap",
+                "map_points": "/api/phishing/map-points",
                 "filtered": "/api/phishing/filtered",
                 "stats": "/api/phishing/stats",
                 "refresh": "/api/phishing/refresh"

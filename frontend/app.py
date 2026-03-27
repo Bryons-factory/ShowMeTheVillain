@@ -1,11 +1,12 @@
+import os
 import plotly.express as px
 import pandas as pd
 import requests
 
 
 def get_villain_map():
-    # 1. Fetch data from your Cloudflare Worker URL
-    response = requests.get("https://showmethevillain.tloveseework.workers.dev")
+    base = os.getenv("VILLAIN_API_BASE", "http://127.0.0.1:8000").rstrip("/")
+    response = requests.get(f"{base}/api/phishing/map-points?limit=500", timeout=30)
     df = pd.DataFrame(response.json())
 
     # 2. Build the Plotly Map

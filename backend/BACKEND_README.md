@@ -131,7 +131,8 @@ api_client.py
 
 **Key methods**:
 - `get_all_incidents()` - Fetch and validate all incidents
-- `get_heatmap_data(threat_level, limit)` - Get coordinates for map
+- `get_heatmap_data(threat_level, limit)` - Get coordinates for legacy heatmap (`HeatmapData`)
+- `get_map_points(...)` - Plotly map rows (`lat`, `lon`, `intensity`, filter fields)
 - `get_filtered_incidents(threat_level, company, country, isp)` - Filter data
 - `get_threat_statistics()` - Aggregate statistics
 
@@ -197,7 +198,8 @@ Frontend displays charts and insights
 
 **Models defined**:
 - `PhishingIncident` - Single incident with validation
-- `HeatmapData` - Response for heatmap endpoint
+- `HeatmapData` - Response for heatmap endpoint (coordinate pairs only)
+- `MapPoint` - One row for `GET /api/phishing/map-points` (Plotly + filters)
 - `HeatmapCoordinate` - Single map coordinate
 - `ThreatStatistics` - Aggregated threat stats
 - `FilterRequest` - Request body for filters
@@ -238,7 +240,8 @@ incident = PhishingIncident(**api_response)
 **Endpoints**:
 ```
 GET /api/phishing/               - Get all incidents
-GET /api/phishing/heatmap        - Get coordinates for heatmap
+GET /api/phishing/heatmap        - Get coordinates for heatmap (HeatmapData)
+GET /api/phishing/map-points     - Plotly map: array of MapPoint (filters + intensity)
 GET /api/phishing/filtered       - Get with advanced filters
 GET /api/phishing/stats          - Get threat statistics
 GET /api/phishing/refresh        - Force cache refresh
@@ -279,7 +282,7 @@ GET /api/analytics/isp-rankings         - ISPs with most activity
 **What it does**:
 1. Creates FastAPI app
 2. Registers routes (phishing, analytics)
-3. Configures CORS for frontend
+3. Configures CORS: merges `FRONTEND_ORIGIN`, comma-separated `FRONTEND_ORIGINS` (e.g. Cloudflare Pages), and common localhost ports
 4. Provides health check and info endpoints
 5. Starts server on port 8000
 
@@ -321,6 +324,21 @@ Frontend Receives:
     "incident_count": 342,
     "last_updated": "2026-02-21T10:30:00Z"
   }
+```
+
+### Example 1b: ShowMeTheVillain map (Plotly + filter bar)
+```
+Frontend:
+  fetch('http://localhost:8000/api/phishing/map-points?limit=500')
+
+Backend returns JSON array of MapPoint:
+  [{ "lat", "lon", "intensity", "name", "threat_level", "company", "country", "isp" }, ...]
+
+The static page may filter in the browser; optional query params apply server-side filters
+the same way as GET /api/phishing/filtered.
+
+Edge layer: Cloudflare Worker (frontend/entry.py) can serve demo data or proxy if BACKEND_MAP_URL is set;
+GitHub Actions deploys Pages + Worker per .github/workflows/deploy.yml.
 ```
 
 ### Example 2: Frontend Requests Analytics
@@ -478,6 +496,8 @@ LOG_LEVEL=INFO
 CLOUDFLARE_D1_CONNECTION=your_cloudflare_connection_string
 DATABASE_PATH=./data/phishing.db
 FRONTEND_ORIGIN=http://localhost:3000
+# Optional: https://your-project.pages.dev,https://preview.pages.dev
+FRONTEND_ORIGINS=
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8000
 ```

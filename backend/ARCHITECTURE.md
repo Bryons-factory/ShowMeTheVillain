@@ -124,6 +124,8 @@ Does NOT do:
 
 ## Data Flow: Request to Response
 
+The hosted **ShowMeTheVillain** page calls `GET /api/phishing/map-points` and filters in the browser; the same cache and `api_client.fetch_incidents()` path applies as below, then incidents are mapped to `MapPoint` JSON. The following walkthrough uses the legacy **heatmap** endpoint for illustration (`HeatmapData` with `coordinates` only).
+
 ### Request 1: Get Heatmap (Cache Hit - FAST!)
 
 ```

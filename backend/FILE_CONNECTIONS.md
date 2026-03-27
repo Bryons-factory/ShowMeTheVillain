@@ -4,8 +4,9 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    FRONTEND (map.py)                             │
-│  Calls: GET /api/phishing/heatmap                               │
+│         FRONTEND (index.html / Pages + optional Worker)         │
+│  Calls: GET /api/phishing/map-points (Plotly + filters)         │
+│          GET /api/phishing/heatmap (legacy coordinate pairs)     │
 │          GET /api/analytics/overview                             │
 └─────────────────┬───────────────────────────────────────────────┘
                   │ HTTP/JSON
@@ -24,13 +25,12 @@
    phishing.py          analytics.py
    (HTTP layer)         (HTTP layer)
         │                    │
-        ├─ GET /api/phishing/ │
-        ├─ GET /heatmap       │ ├─ GET /api/analytics/overview
-        ├─ GET /filtered      │ ├─ GET /threat-distribution
-        ├─ GET /stats         │ ├─ GET /top-regions
-        └─ GET /refresh       │ ├─ GET /top-companies
-                              │ ├─ GET /threat-hotspots
-                              │ └─ GET /isp-rankings
+        ├─ GET /api/phishing/ │ ├─ GET /api/analytics/overview
+        ├─ GET /map-points    │ ├─ GET /threat-distribution
+        ├─ GET /heatmap       │ ├─ GET /top-regions
+        ├─ GET /filtered      │ ├─ GET /top-companies
+        ├─ GET /stats         │ ├─ GET /threat-hotspots
+        └─ GET /refresh       │ └─ GET /isp-rankings
         │                    │
         └─────────┬──────────┘
                   ▼ (calls methods)
@@ -146,6 +146,7 @@ Called by:
 Provides:
 ├─ get_all_incidents()
 ├─ get_heatmap_data()
+├─ get_map_points()
 ├─ get_filtered_incidents()
 └─ get_threat_statistics()
 ```
@@ -177,6 +178,7 @@ Registered in:
 
 Endpoints:
 ├─ GET /api/phishing/
+├─ GET /api/phishing/map-points
 ├─ GET /api/phishing/heatmap
 ├─ GET /api/phishing/filtered
 ├─ GET /api/phishing/stats
@@ -264,7 +266,22 @@ Indexes for fast queries on:
 
 ## Data Flow Examples
 
-### Example 1: Heatmap Request
+### Example 1: Map points (ShowMeTheVillain UI)
+```
+Frontend
+  ↓ GET /api/phishing/map-points?limit=500
+main.py
+  ↓ routes/phishing.py
+phishing_service.get_map_points(...)
+  ├─ get_filtered_incidents() → api_client.fetch_incidents() + validate
+  └─ Map each incident → models.MapPoint
+  ↓
+JSON array of { lat, lon, intensity, name, threat_level, company, country, isp }
+  ↓
+Plotly map + client-side toolbar filters
+```
+
+### Example 1b: Heatmap Request (legacy)
 ```
 Frontend
   ↓ GET /api/phishing/heatmap?threat_level=high
