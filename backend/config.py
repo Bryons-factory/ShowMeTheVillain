@@ -61,6 +61,8 @@ class Settings:
     # DATABASE CONFIGURATION
     # These settings connect to Cloudflare D1 for persistent data storage
     # ──────────────────────────────────────────────────────────────────────────
+    
+    
     CLOUDFLARE_D1_CONNECTION: str = os.getenv("CLOUDFLARE_D1_CONNECTION", "")
     DATABASE_PATH: str = os.getenv("DATABASE_PATH", "./data/phishing.db")
     
