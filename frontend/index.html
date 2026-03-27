@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- api-base: FastAPI origin (no trailing slash) OR Worker URL for data-source=worker.
-         In production this must be set to an HTTPS URL to avoid mixed-content blocking when the page is served over HTTPS. -->
+         GitHub Actions rewrites these for Cloudflare Pages after Worker deploy (see .github/workflows/deploy.yml).
+         In production over HTTPS, api-base must be HTTPS (never http://127.0.0.1) to avoid mixed-content blocking. -->
     <meta name="api-base" content="http://127.0.0.1:8000">
     <!-- data-source: "api" -> GET {api-base}/api/phishing/map-points ; "worker" -> GET {api-base}/ (Worker stub) -->
     <meta name="data-source" content="api">
@@ -280,6 +281,15 @@
             }
 
             var dataUrl = buildDataUrl();
+            if (/\.pages\.dev$/i.test(window.location.hostname)) {
+                var _b = getApiBase();
+                if (/^http:\/\/(127\.0\.0\.1|localhost)\b/i.test(_b) && getDataSource() === 'api') {
+                    statusEl.classList.add('error');
+                    statusEl.textContent =
+                        'Pages build still targets localhost. Deploy with GitHub Actions (patches Worker URL) or set meta api-base to your HTTPS Worker URL and data-source to worker.';
+                    return;
+                }
+            }
             fetch(dataUrl)
                 .then(function (response) {
                     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -294,8 +304,9 @@
                 })
                 .catch(function (error) {
                     statusEl.classList.add('error');
-                    statusEl.textContent = 'Could not load threat data. Check api-base / data-source meta and that the API is running.';
-                    console.error(error);
+                    var msg = (error && error.message) ? error.message : 'Request failed';
+                    statusEl.textContent = 'Could not load threat data: ' + msg + '. Check api-base / data-source meta and that the API is running.';
+                    console.error('Threat data URL:', dataUrl, error);
                 });
         })();
     </script>

@@ -28,13 +28,6 @@ jobs:
       - name: Install Wrangler Globally
         run: npm install -g wrangler@4.71.0
 
-      - name: Deploy Heatmap Frontend (Pages)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          wrangler pages deploy ./frontend --project-name=showmethevillian
-
       - name: Generate strict wrangler.toml
         run: |
           echo 'name = "showmethevillain"' > wrangler.toml
@@ -46,5 +39,27 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PAGES_API_BASE: ${{ secrets.PAGES_API_BASE }}
         run: |
-          wrangler deploy
+          set -euo pipefail
+          OUT=$(wrangler deploy 2>&1) || { echo "$OUT"; exit 1; }
+          echo "$OUT"
+          URL=$(printf '%s' "$OUT" | grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' | head -1 || true)
+          if [ -z "${URL:-}" ]; then
+            URL="${PAGES_API_BASE:-}"
+          fi
+          if [ -z "${URL:-}" ]; then
+            echo "::error::Could not read workers.dev URL from wrangler output. Set repo secret PAGES_API_BASE to your Worker HTTPS URL (e.g. https://showmethevillain.<subdomain>.workers.dev)."
+            exit 1
+          fi
+          echo "WORKER_URL=$URL" >> "$GITHUB_ENV"
+
+      - name: Patch Pages HTML to use Worker map data (HTTPS)
+        run: python frontend/scripts/patch_pages_meta.py
+
+      - name: Deploy Heatmap Frontend (Pages)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          wrangler pages deploy ./frontend --project-name=showmethevillian
