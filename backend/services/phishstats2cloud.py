@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 from ..database2 import CREATE_TABLE_SQL, UPSERT_SQL, GET_OLDEST_DATE_SQL
+import database
 
 load_dotenv()
 

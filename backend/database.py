@@ -75,6 +75,8 @@ from datetime import datetime
 
 from config import config
 
+import schemas
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,56 +107,7 @@ class Database:
             cursor = conn.cursor()
             
             # Create phishing_incidents table
-            cursor.execute("""
-    CREATE TABLE IF NOT EXISTS phishing_links (
-        id INTEGER PRIMARY KEY,
-        url TEXT NOT NULL,
-        redirect_url TEXT,
-        ip TEXT,
-        countrycode TEXT,
-        countryname TEXT,
-        regioncode TEXT,
-        regionname TEXT,
-        city TEXT,
-        zipcode TEXT,
-        latitude REAL,
-        longitude REAL,
-        asn TEXT,
-        bgp TEXT,
-        isp TEXT,
-        title TEXT,
-        date TEXT,
-        date_update TEXT,
-        hash TEXT,
-        score REAL,
-        host TEXT,
-        domain TEXT,
-        tld TEXT,
-        domain_registered_n_days_ago INTEGER,
-        screenshot TEXT,
-        abuse_contact TEXT,
-        ssl_issuer TEXT,
-        ssl_subject TEXT,
-        rank_host INTEGER,
-        rank_domain INTEGER,
-        n_times_seen_ip INTEGER,
-        n_times_seen_host INTEGER,
-        n_times_seen_domain INTEGER,
-        http_code INTEGER,
-        http_server TEXT,
-        google_safebrowsing TEXT,
-        virus_total TEXT,
-        abuse_ch_malware TEXT,
-        vulns TEXT,
-        ports TEXT,
-        os TEXT,
-        tags TEXT,
-        technology TEXT,
-        page_text TEXT,
-        ssl_fingerprint TEXT,
-        inserted_at TEXT DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
+            cursor.execute(schemas.CREATE_TABLE_SQL)
             
             # Create cache_metadata table
             cursor.execute("""
@@ -205,60 +158,9 @@ class Database:
         """
         try:
             conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            cursor = conn.cursor(schemas.UPSERT_SQL)
             
-            cursor.execute("""
-    INSERT INTO phishing_links (
-        id,
-        url,
-        redirect_url,
-        ip,
-        countrycode,
-        countryname,
-        regioncode,
-        regionname,
-        city,
-        zipcode,
-        latitude,
-        longitude,
-        asn,
-        bgp,
-        isp,
-        title,
-        date,
-        date_update,
-        hash,
-        score,
-        host,
-        domain,
-        tld,
-        domain_registered_n_days_ago,
-        screenshot,
-        abuse_contact,
-        ssl_issuer,
-        ssl_subject,
-        rank_host,
-        rank_domain,
-        n_times_seen_ip,
-        n_times_seen_host,
-        n_times_seen_domain,
-        http_code,
-        http_server,
-        google_safebrowsing,
-        virus_total,
-        abuse_ch_malware,
-        vulns,
-        ports,
-        os,
-        tags,
-        technology,
-        page_text,
-        ssl_fingerprint
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-        ...
-    """, (
+            cursor.execute(schemas.INSERT_INCIDENT_SQL, (
         incident.get("id"),
         incident.get("url"),
         incident.get("redirect_url"),
