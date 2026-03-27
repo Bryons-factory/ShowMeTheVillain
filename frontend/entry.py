@@ -93,9 +93,10 @@ class Default(WorkerEntrypoint):
                 return Response(body, headers=cors_json)
             except Exception as e:
                 logger.exception("BACKEND_MAP_URL proxy failed")
-                err = json.dumps(
-                    {"error": "backend_proxy_failed", "detail": str(e)}
-                )
+                error_payload = {"error": "backend_proxy_failed"}
+                if os.environ.get("WORKER_DEBUG") == "1":
+                    error_payload["detail"] = str(e)
+                err = json.dumps(error_payload)
                 return Response(err, status=502, headers=cors_json)
 
         return Response(

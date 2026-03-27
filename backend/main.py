@@ -69,22 +69,30 @@ logger = logging.getLogger(__name__)
 
 
 def _cors_allow_origins():
-    """Merge primary origin, FRONTEND_ORIGINS (comma-separated), and local dev defaults."""
+    """Merge primary origin, FRONTEND_ORIGINS (comma-separated), and optional local dev defaults."""
     parts = []
     if getattr(config, "FRONTEND_ORIGIN", None):
         parts.append(config.FRONTEND_ORIGIN.strip())
     extra = getattr(config, "FRONTEND_ORIGINS", "") or ""
     parts.extend(x.strip() for x in extra.split(",") if x.strip())
-    parts.extend(
-        [
-            "http://localhost:3000",
-            "http://localhost:8000",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:8000",
-            "http://localhost:8080",
-            "http://127.0.0.1:8080",
-        ]
+
+    # Only include localhost/dev origins in non-production environments or when explicitly enabled.
+    env = getattr(config, "ENV", "development")
+    env_lower = str(env).lower()
+    allow_dev_origins = env_lower in {"dev", "development", "local", "test"} or bool(
+        getattr(config, "ALLOW_DEV_ORIGINS", False)
     )
+    if allow_dev_origins:
+        parts.extend(
+            [
+                "http://localhost:3000",
+                "http://localhost:8000",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:8000",
+                "http://localhost:8080",
+                "http://127.0.0.1:8080",
+            ]
+        )
     seen = set()
     out = []
     for o in parts:
