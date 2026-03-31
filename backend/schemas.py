@@ -1,4 +1,5 @@
 CREATE_TABLE_SQL = """
+
 CREATE TABLE IF NOT EXISTS phishing_links (
     id INTEGER PRIMARY KEY,
     url TEXT NOT NULL,
@@ -146,3 +147,22 @@ ON CONFLICT(id) DO UPDATE SET
 """
 
 GET_OLDEST_DATE_SQL = "SELECT MIN(date) AS oldest_date FROM phishing_links"
+
+
+MAP_DATA_SQL = """
+
+SELECT
+
+  isp,
+  title,
+  latitude,
+  longitude,
+  countryname,
+  countrycode
+
+FROM phishing_links
+WHERE
+  latitude IS NOT NULL AND longitude IS NOT NULL
+
+"""
+
