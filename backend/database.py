@@ -363,3 +363,5 @@ class Database:
         except Exception as e:
             logger.error(f"✗ Error clearing old incidents: {e}")
             raise
+
+
