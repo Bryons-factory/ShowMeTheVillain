@@ -1,0 +1,13 @@
+name = "data-extraction-worker"
+main = "src/index.ts"
+compatibility_date = "2024-03-31"
+
+# Trigger the worker at the top of every hour
+[triggers]
+crons = ["0 * * * *"] 
+
+# Bind the D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "phishnstatsdb"
+database_id = "35a14f67-b85e-407d-9bb6-c9aaf27359c5"
