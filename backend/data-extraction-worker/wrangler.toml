@@ -2,9 +2,14 @@ name = "data-extraction-worker"
 main = "src/index.ts"
 compatibility_date = "2024-03-31"
 
+[vars]
+PHISHSTATS_BATCH_SIZE = "20"
+PHISHSTATS_OVERLAP_MINUTES = "90"
+PHISHSTATS_MAX_BATCHES_PER_RUN = "10"
+
 # Trigger the worker at the top of every hour
 [triggers]
-crons = ["0 * * * *"] 
+crons = ["0 * * * *"]
 
 # Bind the D1 Database
 [[d1_databases]]
