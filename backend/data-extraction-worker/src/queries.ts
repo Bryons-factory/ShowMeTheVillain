@@ -1,55 +1,6 @@
-CREATE_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS phishing_links (
-    id INTEGER PRIMARY KEY,
-    url TEXT NOT NULL,
-    redirect_url TEXT,
-    ip TEXT,
-    countrycode TEXT,
-    countryname TEXT,
-    regioncode TEXT,
-    regionname TEXT,
-    city TEXT,
-    zipcode TEXT,
-    latitude REAL,
-    longitude REAL,
-    asn TEXT,
-    bgp TEXT,
-    isp TEXT,
-    title TEXT,
-    date TEXT,
-    date_update TEXT,
-    hash TEXT,
-    score REAL,
-    host TEXT,
-    domain TEXT,
-    tld TEXT,
-    domain_registered_n_days_ago INTEGER,
-    screenshot TEXT,
-    abuse_contact TEXT,
-    ssl_issuer TEXT,
-    ssl_subject TEXT,
-    rank_host INTEGER,
-    rank_domain INTEGER,
-    n_times_seen_ip INTEGER,
-    n_times_seen_host INTEGER,
-    n_times_seen_domain INTEGER,
-    http_code INTEGER,
-    http_server TEXT,
-    google_safebrowsing TEXT,
-    virus_total TEXT,
-    abuse_ch_malware TEXT,
-    vulns TEXT,
-    ports TEXT,
-    os TEXT,
-    tags TEXT,
-    technology TEXT,
-    page_text TEXT,
-    ssl_fingerprint TEXT,
-    inserted_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-"""
+/** DML for phishing_links. Must match schema.sql columns and transform.ts bind order (Tom + Matt). */
 
-UPSERT_SQL = """
+export const UPSERT_SQL = `
 INSERT INTO phishing_links (
     id,
     url,
@@ -143,6 +94,7 @@ ON CONFLICT(id) DO UPDATE SET
     technology = excluded.technology,
     page_text = excluded.page_text,
     ssl_fingerprint = excluded.ssl_fingerprint
-"""
+`.trim();
 
-GET_OLDEST_DATE_SQL = "SELECT MIN(date) AS oldest_date FROM phishing_links"
+export const GET_OLDEST_DATE_SQL =
+  "SELECT MIN(date) AS oldest_date FROM phishing_links";
