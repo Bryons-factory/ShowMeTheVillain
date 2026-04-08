@@ -23,9 +23,10 @@ async function runOnce(
     return { nextCursor: cursor, count: 0 };
   }
 
+  const stmt = env.DB.prepare(UPSERT_SQL);
   const statements = records.map((record) => {
     const params = buildParams(record);
-    return env.DB.prepare(UPSERT_SQL).bind(...params);
+    return stmt.bind(...params);
   });
   await env.DB.batch(statements);
 
