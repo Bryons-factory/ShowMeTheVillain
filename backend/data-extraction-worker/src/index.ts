@@ -7,7 +7,7 @@ import {
 import type { Env } from "./env";
 import { fetchBatch } from "./phishstats";
 import { MAP_POINTS_SELECT_SQL, UPSERT_SQL } from "./queries";
-import { rowToMapPoint } from "./map-points";
+import { rowToMapPoint, filterMapPoints } from "./map-points";
 import { buildParams } from "./transform";
 
 export type { Env };
@@ -87,13 +87,26 @@ export default {
     const url = new URL(request.url);
     const limit = parseMapLimit(url);
 
+    const filters = {
+      threat_level: url.searchParams.get("threat_level") ?? undefined,
+      country: url.searchParams.get("country") ?? undefined,
+      isp: url.searchParams.get("isp") ?? undefined,
+      intensity_above: url.searchParams.has("intensity_above")
+        ? parseFloat(url.searchParams.get("intensity_above")!)
+        : undefined,
+      intensity_below: url.searchParams.has("intensity_below")
+        ? parseFloat(url.searchParams.get("intensity_below")!)
+        : undefined,
+    };
+
     try {
       const { results } = await env.DB.prepare(MAP_POINTS_SELECT_SQL)
         .bind(limit)
         .all<Record<string, unknown>>();
-      const rows = (results ?? [])
+      let rows = (results ?? [])
         .map((r) => rowToMapPoint(r))
         .filter((p): p is NonNullable<typeof p> => p !== null);
+      rows = filterMapPoints(rows, filters);
       return jsonResponse(rows);
     } catch (e) {
       console.error("map-points: D1 query failed", e);

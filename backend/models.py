@@ -80,7 +80,7 @@ class PhishingIncident(BaseModel):
     @validator('threat_level')
     def validate_threat_level(cls, v):
         """Ensure threat level is one of the allowed values."""
-        allowed = ['low', 'medium', 'high', 'critical', 'unknown']
+        allowed = ['none', 'low', 'moderate', 'elevated', 'high', 'critical', 'unknown']
         if v.lower() not in allowed:
             raise ValueError(f"threat_level must be one of {allowed}")
         return v.lower()
@@ -154,20 +154,24 @@ class ThreatStatistics(BaseModel):
     total_incidents: int
     critical_count: int
     high_count: int
-    medium_count: int
+    elevated_count: int = 0
+    moderate_count: int = 0
     low_count: int
+    none_count: int = 0
     top_targeted_companies: List[str]
     most_active_countries: List[str]
     last_updated: datetime
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "total_incidents": 1000,
                 "critical_count": 50,
                 "high_count": 200,
-                "medium_count": 400,
-                "low_count": 350,
+                "elevated_count": 150,
+                "moderate_count": 250,
+                "low_count": 300,
+                "none_count": 50,
                 "top_targeted_companies": ["PayPal", "Apple", "Microsoft"],
                 "most_active_countries": ["United States", "China", "Russia"],
                 "last_updated": "2026-02-21T10:30:00Z"
