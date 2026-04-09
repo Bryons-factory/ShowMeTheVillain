@@ -19,6 +19,8 @@ def getThreatLevel(score: float) -> str:
         case _:
             return "unknown"
 
+# NOTE: SQL DATAIN
+
 
 @dataclass
 class location:
@@ -80,6 +82,8 @@ class JsonItem(TypedDict):
     company: str
     country: str
     isp: str
+
+# NOTE: FilterFunctions
 
 
 def isNone(item: JsonItem) -> bool:
