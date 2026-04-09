@@ -67,7 +67,10 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
-_THREAT_INTENSITY = {"critical": 10, "high": 8, "medium": 5, "low": 3, "unknown": 4}
+_THREAT_INTENSITY = {
+    "critical": 10, "high": 8, "elevated": 6, "moderate": 4,
+    "low": 2, "none": 1, "unknown": 4,
+}
 
 
 def _incident_to_map_point(incident: PhishingIncident) -> Optional[MapPoint]:
@@ -339,8 +342,10 @@ class PhishingService:
             threat_counts = {
                 'critical': 0,
                 'high': 0,
-                'medium': 0,
-                'low': 0
+                'elevated': 0,
+                'moderate': 0,
+                'low': 0,
+                'none': 0,
             }
             
             companies = {}
@@ -368,8 +373,10 @@ class PhishingService:
                 total_incidents=len(incidents),
                 critical_count=threat_counts['critical'],
                 high_count=threat_counts['high'],
-                medium_count=threat_counts['medium'],
+                elevated_count=threat_counts['elevated'],
+                moderate_count=threat_counts['moderate'],
                 low_count=threat_counts['low'],
+                none_count=threat_counts['none'],
                 top_targeted_companies=[c[0] for c in top_companies],
                 most_active_countries=[c[0] for c in top_countries],
                 last_updated=datetime.now()

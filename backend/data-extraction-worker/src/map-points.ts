@@ -26,13 +26,15 @@ function str(v: unknown): string | null {
   return s.length ? s : null;
 }
 
-/** PhishStats score (REAL) → UI threat_level. Tune thresholds with Tom/Matt if needed. */
+/** PhishStats score → threat_level. Aligned with testBuilder.py getThreatLevel. */
 export function scoreToThreatLevel(score: number | null): string {
   if (score === null) return "unknown";
-  if (score >= 8) return "critical";
-  if (score >= 6) return "high";
-  if (score >= 4) return "medium";
-  if (score >= 1) return "low";
+  if (score <= 0) return "none";
+  if (score <= 2) return "low";
+  if (score <= 4) return "moderate";
+  if (score <= 6) return "elevated";
+  if (score <= 8) return "high";
+  if (score <= 10) return "critical";
   return "unknown";
 }
 
@@ -41,6 +43,45 @@ export function scoreToIntensity(score: number | null): number {
   if (score === null) return 4;
   const rounded = Math.round(score);
   return Math.min(10, Math.max(1, rounded));
+}
+
+/** Filter predicates aligned with testBuilder.py filter functions. */
+export function filterMapPoints(
+  rows: MapPointRow[],
+  filters: {
+    threat_level?: string;
+    country?: string;
+    isp?: string;
+    intensity_above?: number;
+    intensity_below?: number;
+  }
+): MapPointRow[] {
+  let result = rows;
+
+  if (filters.threat_level) {
+    const level = filters.threat_level.toLowerCase();
+    result = result.filter((r) => r.threat_level === level);
+  }
+  if (filters.country) {
+    const country = filters.country.toLowerCase();
+    result = result.filter(
+      (r) => r.country !== null && r.country.toLowerCase() === country
+    );
+  }
+  if (filters.isp) {
+    const isp = filters.isp.toLowerCase();
+    result = result.filter(
+      (r) => r.isp !== null && r.isp.toLowerCase() === isp
+    );
+  }
+  if (filters.intensity_above !== undefined) {
+    result = result.filter((r) => r.intensity > filters.intensity_above!);
+  }
+  if (filters.intensity_below !== undefined) {
+    result = result.filter((r) => r.intensity < filters.intensity_below!);
+  }
+
+  return result;
 }
 
 export function rowToMapPoint(row: Record<string, unknown>): MapPointRow | null {

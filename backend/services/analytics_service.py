@@ -98,9 +98,11 @@ class AnalyticsService:
             distribution = {
                 'critical': 0,
                 'high': 0,
-                'medium': 0,
+                'elevated': 0,
+                'moderate': 0,
                 'low': 0,
-                'unknown': 0
+                'none': 0,
+                'unknown': 0,
             }
             
             for incident in incidents:
