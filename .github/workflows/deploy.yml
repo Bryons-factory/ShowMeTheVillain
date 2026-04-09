@@ -54,12 +54,26 @@ jobs:
           fi
           echo "WORKER_URL=$URL" >> "$GITHUB_ENV"
 
+      # Map data (GET /) is served from this Worker + D1. Pages api-base must use this URL.
       - name: Deploy Data Extraction Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          D1_WORKER_URL_SECRET: ${{ secrets.D1_WORKER_URL }}
         working-directory: ./backend/data-extraction-worker
-        run: npx wrangler deploy
+        run: |
+          set -euo pipefail
+          OUT=$(npx wrangler deploy 2>&1) || { echo "$OUT"; exit 1; }
+          echo "$OUT"
+          URL=$(printf '%s' "$OUT" | grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' | head -1 || true)
+          if [ -z "${URL:-}" ]; then
+            URL="${D1_WORKER_URL_SECRET:-}"
+          fi
+          if [ -z "${URL:-}" ]; then
+            echo "::error::Could not read data-extraction-worker URL from wrangler output. Set repo secret D1_WORKER_URL to its HTTPS URL (e.g. https://data-extraction-worker.<subdomain>.workers.dev)."
+            exit 1
+          fi
+          echo "D1_WORKER_URL=$URL" >> "$GITHUB_ENV"
 
       - name: Patch Pages HTML to use Worker map data (HTTPS)
         run: python frontend/scripts/patch_pages_meta.py

@@ -113,13 +113,11 @@ python main.py  # Starts FastAPI on port 8000
 
 ## What Your Frontend Needs to Know
 
-Your frontend only needs to call endpoints. It NEVER needs to:
-- Call PhishStats API directly ❌
-- Manage rate limits ❌
-- Implement caching logic ❌
-- Handle retries ❌
+**Hosted (Cloudflare Pages, `data-source=worker`):** call your **D1 Worker** (default `GET /?limit=800`). Response is a **JSON array** of map rows (`lat`, `lon`, `intensity`, `name`, `threat_level`, `company`, `country`, `isp`). No PhishStats in the browser.
 
-The backend does all that. Frontend just:
+**Local FastAPI (`data-source=api`):** the Python backend hides PhishStats + cache. The frontend should not call PhishStats directly.
+
+FastAPI examples:
 
 ```javascript
 // Get heatmap data
@@ -175,9 +173,13 @@ curl http://localhost:8000/api/phishing/refresh
 
 ## API Endpoints Cheat Sheet
 
-### Phishing Data
+### Map data (two sources)
+
+- **`GET https://<data-extraction-worker>/`** — **D1**-backed map JSON (same row shape as map-points). Used by Pages when `data-source=worker`. See `backend/data-extraction-worker/README.md`.
+
+### Phishing Data (FastAPI)
 - `GET /api/phishing/` - All incidents (with limit, offset, threat_level)
-- `GET /api/phishing/map-points` - Plotly map rows (lat, lon, intensity, filters)
+- `GET /api/phishing/map-points` - Plotly map rows from **PhishStats** + cache (local / `data-source=api`)
 - `GET /api/phishing/heatmap` - Coordinates for legacy heatmap (`HeatmapData`)
 - `GET /api/phishing/filtered` - Advanced filters (company, country, isp)
 - `GET /api/phishing/stats` - Threat statistics
@@ -230,39 +232,35 @@ asyncio.run(main())
 - Check `models.py` - do the fields match what PhishStats sends?
 - Test: `curl http://localhost:8000/api/phishing/`
 
-### Thomas (Database/Backend)
-- Review `database.py` - ready to connect to actual Cloudflare D1?
-- Check `migrations/001_initial_schema.sql` - do we need more fields?
-- Consider: Query optimization, backup strategy
+### Thomas (D1 / schema)
+- Own `backend/data-extraction-worker/schema.sql` and read/ingest SQL in `src/queries.ts`
+- Backups and migrations for `phishing_links`
 
-### Matthew (Frontend Integration)
-- Review `routes/phishing.py` and `routes/analytics.py` - match your needs?
-- Test each endpoint from your React code
-- Verify CORS is working: `GET /health` should work from frontend
+### Matthew (map feed + ingest binds)
+- `data-extraction-worker`: `transform.ts`, `map-points.ts`, Worker `fetch` / CORS
+- Coordinate row shape with `frontend/index.html` filters
 
-### Bryon (DevOps/Hosting)
-- Set up Cloudflare D1 and update `config.CLOUDFLARE_D1_CONNECTION`
-- Configure environment variables (see backend/BACKEND_README.md)
-- Deploy to Cloudflare Workers
+### Bryon (frontend / DevOps)
+- Pages meta + CI (`D1_WORKER_URL`); deploy Workers + Pages
+- FastAPI `.env` for local development
+
+### Frontend (UI)
+- Review `routes/*` if using FastAPI; for hosted map, only the Worker JSON contract matters
 
 ---
 
 ## Remember
 
-The backend is **THE SOURCE OF TRUTH**. The frontend is just a beautiful visualization of data the backend provides.
-
-If the frontend needs data, it asks the backend. The backend figures out whether to use cache, fetch from API, or query the database.
-
-Frontend: "Give me heatmap data for critical threats"
-Backend: "Coming right up!" (and handles all the complexity behind the scenes)
+- **Hosted map:** source of truth for displayed points is **D1**, served by **`data-extraction-worker`** (`GET /`).
+- **FastAPI:** source for `/api/phishing/*` is **PhishStats + cache** (not D1 in the current Python code).
 
 ---
 
 ## Next Steps
 
-1. ✅ Backend is ready to run
-2. ⬜ Connect frontend to these endpoints
-3. ⬜ Set up Cloudflare D1 database
+1. ✅ FastAPI ready to run locally
+2. ⬜ Deploy D1 + `data-extraction-worker`; point Pages `api-base` at that Worker
+3. ⬜ Connect frontend (`data-source=worker` prod, `data-source=api` optional local)
 4. ⬜ Deploy to production
 
 Questions? Check the docstring at the top of each file!

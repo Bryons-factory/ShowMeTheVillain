@@ -36,15 +36,11 @@ Total documentation: **~1500 lines**
 - **Connects to**: api_client, services, routes
 - **Key feature**: Automatic validation of coordinates and threat levels
 
-### 4. **database.py** (250 lines)
-- **Purpose**: Cloudflare D1 database operations
-- **What it does**:
-  - Creates database tables on startup
-  - Stores/retrieves phishing incidents
-  - Manages cache metadata
-  - Provides query methods
-- **Connects to**: services
-- **Key feature**: Ready to connect to actual Cloudflare D1
+### 4. **data-extraction-worker/** (TypeScript Worker)
+- **Purpose**: D1 `phishing_links` ingest (cron) + **`GET /`** map JSON for Pages
+- **What it does**: PhishStats → D1 upsert; HTTP read for hosted map (`data-source=worker`)
+- **Connects to**: Cloudflare D1 only (FastAPI does not import this package)
+- **Note**: There is **no** `database.py` in the Python backend; D1 is accessed from this Worker.
 
 ### 5. **main.py** (180 lines)
 - **Purpose**: FastAPI application initialization
@@ -79,8 +75,8 @@ Total documentation: **~1500 lines**
   - Filters by threat level, company, country, ISP
   - Transforms data for different endpoints
   - Generates threat statistics
-- **Connects to**: api_client, models, database
-- **Key feature**: Reusable service for multiple endpoints
+- **Connects to**: api_client, models
+- **Key feature**: Reusable service for multiple endpoints (PhishStats path; not D1)
 
 ### 8. **services/analytics_service.py** (250 lines)
 - **Purpose**: Analytics and insights generation
@@ -191,7 +187,8 @@ Total documentation: **~1500 lines**
 ```
 DEBUG=True
 LOG_LEVEL=INFO
-CLOUDFLARE_D1_CONNECTION=your_connection_string
+# CLOUDFLARE_D1_CONNECTION — in config; FastAPI does not query D1 today
+CLOUDFLARE_D1_CONNECTION=
 DATABASE_PATH=./data/phishing.db
 FRONTEND_ORIGIN=http://localhost:3000
 BACKEND_HOST=0.0.0.0
@@ -207,8 +204,8 @@ backend/
 ├── config.py                          ✅ CREATED
 ├── api_client.py                      ✅ CREATED
 ├── models.py                          ✅ CREATED
-├── database.py                        ✅ CREATED
 ├── main.py                            ✅ CREATED
+├── data-extraction-worker/            ✅ D1 Worker (ingest + map API)
 ├── requirements.txt                   ✅ CREATED
 │
 ├── services/                          ✅ CREATED
@@ -261,10 +258,6 @@ TOTAL           17       ~2920    ~1450       ~1470
 ### models.py
 ├─ uses: (none, standalone)
 └─ used by: api_client, services, routes
-
-### database.py
-├─ uses: config, models
-└─ called by: services
 
 ### main.py
 ├─ uses: config, routes
@@ -334,10 +327,11 @@ TOTAL           17       ~2920    ~1450       ~1470
 
 ## Next Steps for Team
 
-1. **Ethan**: Verify api_client.py handles PhishStats response correctly
-2. **Thomas**: Connect to actual Cloudflare D1 database
-3. **Matthew**: Test endpoints from frontend React code
-4. **Bryon**: Deploy to Cloudflare Workers and configure environment
+1. **Ethan**: Worker ingest + api_client PhishStats path
+2. **Thomas**: D1 schema + `queries.ts` alignment
+3. **Matt**: `map-points.ts` + Worker `fetch`
+4. **Matthew (UI)**: Map against Worker JSON or FastAPI
+5. **Bryon**: CI, Pages `D1_WORKER_URL`, deploys
 
 ---
 

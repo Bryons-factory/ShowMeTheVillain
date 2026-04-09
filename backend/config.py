@@ -12,8 +12,8 @@ WHAT THIS FILE DOES:
 
 WHAT IT CONNECTS TO:
 - api_client.py: Provides API URLs, timeouts, and rate limits
-- database.py: Provides database connection strings
 - services/: All services use these settings
+- D1 live data: data-extraction-worker (not queried by FastAPI in this codebase)
 - main.py: Initializes with these settings
 
 HOW TO USE:

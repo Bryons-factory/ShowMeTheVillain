@@ -6,10 +6,34 @@ import {
 } from "./cursor";
 import type { Env } from "./env";
 import { fetchBatch } from "./phishstats";
-import { UPSERT_SQL } from "./queries";
+import { MAP_POINTS_SELECT_SQL, UPSERT_SQL } from "./queries";
+import { rowToMapPoint } from "./map-points";
 import { buildParams } from "./transform";
 
 export type { Env };
+
+const DEFAULT_MAP_LIMIT = 800;
+const MAX_MAP_LIMIT = 2000;
+
+const CORS_JSON_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+};
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: CORS_JSON_HEADERS,
+  });
+}
+
+function parseMapLimit(url: URL): number {
+  const raw = url.searchParams.get("limit");
+  if (!raw) return DEFAULT_MAP_LIMIT;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAP_LIMIT;
+  return Math.min(n, MAX_MAP_LIMIT);
+}
 
 async function runOnce(
   env: Env,
@@ -44,6 +68,39 @@ async function runOnce(
 }
 
 export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === "OPTIONS") {
+      return new Response("", {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Max-Age": "86400",
+        },
+      });
+    }
+
+    if (request.method !== "GET") {
+      return jsonResponse({ error: "method_not_allowed" }, 405);
+    }
+
+    const url = new URL(request.url);
+    const limit = parseMapLimit(url);
+
+    try {
+      const { results } = await env.DB.prepare(MAP_POINTS_SELECT_SQL)
+        .bind(limit)
+        .all<Record<string, unknown>>();
+      const rows = (results ?? [])
+        .map((r) => rowToMapPoint(r))
+        .filter((p): p is NonNullable<typeof p> => p !== null);
+      return jsonResponse(rows);
+    } catch (e) {
+      console.error("map-points: D1 query failed", e);
+      return jsonResponse({ error: "database_error" }, 502);
+    }
+  },
+
   async scheduled(
     _event: ScheduledEvent,
     env: Env,

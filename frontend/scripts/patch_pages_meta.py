@@ -10,9 +10,18 @@ INDEX = ROOT / "index.html"
 
 
 def main() -> None:
-    url = (os.environ.get("WORKER_URL") or os.environ.get("PAGES_API_BASE") or "").strip().rstrip("/")
+    # D1 map API: TypeScript data-extraction-worker (preferred). Fallback: Python BFF or secret.
+    url = (
+        os.environ.get("D1_WORKER_URL")
+        or os.environ.get("WORKER_URL")
+        or os.environ.get("PAGES_API_BASE")
+        or ""
+    ).strip().rstrip("/")
     if not url:
-        print("Set WORKER_URL (from wrangler deploy) or PAGES_API_BASE.", file=sys.stderr)
+        print(
+            "Set D1_WORKER_URL (data-extraction-worker deploy), WORKER_URL, or PAGES_API_BASE.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     html = INDEX.read_text(encoding="utf-8")
     html, n1 = re.subn(

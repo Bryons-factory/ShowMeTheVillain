@@ -10,16 +10,12 @@
 -- - Sets up constraints and relationships
 --
 -- WHAT IT CONNECTS TO:
--- - database.py: Executes these schema creation statements
--- - api_client.py: Stores data from API responses in these tables
--- - services/: Query data from these tables
+-- Optional local SQLite only; FastAPI services do not use this file today.
+-- Production D1 schema: backend/data-extraction-worker/schema.sql
 --
 -- HOW TO USE:
--- For development (SQLite):
+-- Local SQLite experiment:
 --     sqlite3 data/phishing.db < migrations/001_initial_schema.sql
---
--- For production (Cloudflare D1):
---     wrangler d1 execute <database-name> < migrations/001_initial_schema.sql
 --
 -- ═══════════════════════════════════════════════════════════════════════════════
 

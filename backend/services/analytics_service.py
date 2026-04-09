@@ -13,7 +13,7 @@ WHAT THIS FILE DOES:
 
 WHAT IT CONNECTS TO:
 - services/phishing_service.py: Gets raw incidents for analysis
-- database.py: Can retrieve historical data for trend analysis
+- Historical store: D1 via data-extraction-worker (FastAPI analytics still use live PhishStats path)
 - routes/analytics.py: Calls these methods to serve analytics endpoints
 - models.py: Returns ThreatStatistics and other data models
 
