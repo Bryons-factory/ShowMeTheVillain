@@ -21,10 +21,12 @@ BUSINESS LOGIC LAYER
 ├── services/cache_service.py        (Respect API rate limits)
 └── services/analytics_service.py    (Analyze and aggregate data)
           ↓
-DATA ACCESS LAYER
-├── api_client.py           (PhishStats API communication)
-├── database.py             (Cloudflare D1 storage)
+DATA ACCESS LAYER (FastAPI)
+├── api_client.py           (PhishStats API communication + cache)
 └── config.py               (Centralized settings)
+
+CLOUDFLARE (outside this Python package)
+└── data-extraction-worker/ (D1 `phishing_links`: cron ingest + GET / map JSON)
 ```
 
 ## Directory Structure
@@ -34,8 +36,8 @@ backend/
 ├── config.py                          # Centralized configuration
 ├── api_client.py                      # PhishStats API wrapper
 ├── models.py                          # Data validation models (Pydantic)
-├── database.py                        # Database operations
 ├── main.py                            # FastAPI application entry point
+├── data-extraction-worker/            # Cloudflare: D1 ingest + map API (see README inside)
 ├── requirements.txt                   # Python dependencies
 │
 ├── services/
@@ -71,7 +73,6 @@ backend/
 config.py
   ↓ (provides settings to)
   ├─ api_client.py
-  ├─ database.py
   ├─ main.py
   └─ services/
 ```
@@ -215,22 +216,13 @@ incident = PhishingIncident(**api_response)
 
 ---
 
-### 7. Database Layer: `database.py`
-**Purpose**: Persistent storage in Cloudflare D1
+### 7. Persistent data: Cloudflare D1 (not `database.py`)
 
-**Key methods**:
-- `add_incident(incident)` - Store an incident
-- `get_incidents(limit, offset, threat_level)` - Query incidents
-- `get_incident_count()` - Total count
-- `update_cache_metadata()` - Track cache updates
-- `clear_old_incidents(days)` - Clean up old data
+There is **no** `database.py` in this repository. Production phishing rows live in **D1** table **`phishing_links`**, maintained by **`backend/data-extraction-worker`** (cron ingest from PhishStats, **`GET /`** for map JSON). See [`data-extraction-worker/README.md`](data-extraction-worker/README.md).
 
-**Tables**:
-1. `phishing_incidents` - Stores incident data
-2. `cache_metadata` - Tracks last API fetch
-3. `request_logs` - Optional: logs API requests
+FastAPI **`services/*`** use **`api_client.fetch_incidents()`** only; they do **not** query D1.
 
-**Used by**: services/ (for historical analysis)
+Optional **local** SQLite: `migrations/001_initial_schema.sql` (legacy / experiments)—not wired to `phishing_service` in the current code.
 
 ---
 
@@ -328,17 +320,17 @@ Frontend Receives:
 
 ### Example 1b: ShowMeTheVillain map (Plotly + filter bar)
 ```
-Frontend:
+Production (Pages, data-source=worker):
+  fetch('https://<data-extraction-worker>.workers.dev/?limit=800')
+  → JSON array from D1 (same MapPoint-like fields)
+
+Local FastAPI (data-source=api):
   fetch('http://localhost:8000/api/phishing/map-points?limit=500')
+  → PhishStats + cache via phishing_service
 
-Backend returns JSON array of MapPoint:
-  [{ "lat", "lon", "intensity", "name", "threat_level", "company", "country", "isp" }, ...]
+The static page filters in the browser. CI patches api-base to the D1 Worker URL (see frontend/scripts/patch_pages_meta.py).
 
-The static page may filter in the browser; optional query params apply server-side filters
-the same way as GET /api/phishing/filtered.
-
-Edge layer: Cloudflare Worker (frontend/entry.py) can serve demo data or proxy if BACKEND_MAP_URL is set;
-GitHub Actions deploys Pages + Worker per .github/workflows/deploy.yml.
+Optional: Python Worker (frontend/entry.py) — demo or BACKEND_MAP_URL proxy; not the primary map source when Pages targets the D1 Worker.
 ```
 
 ### Example 2: Frontend Requests Analytics
@@ -421,8 +413,8 @@ curl "http://localhost:8000/api/phishing/stats"
 1. **Separation of Concerns**
    - Routes: Only handle HTTP
    - Services: Only handle business logic
-   - API Client: Only handle external communication
-   - Database: Only handle persistence
+   - API Client: Only handle PhishStats + cache (Python path)
+   - D1 persistence: `data-extraction-worker` (Cloudflare), not FastAPI
 
 2. **Dependency Injection**
    - config.py provides settings to all layers
@@ -439,10 +431,8 @@ curl "http://localhost:8000/api/phishing/stats"
    - Threat levels restricted to allowed values
 
 5. **Frontend Agnosticism**
-   - Frontend doesn't know about PhishStats API
-   - Frontend doesn't handle rate limiting
-   - Frontend doesn't manage cache
-   - Backend is the "source of truth"
+   - Hosted map: Worker + D1 (no PhishStats in the browser)
+   - FastAPI path: PhishStats + cache hidden behind `/api/phishing/*`
 
 ---
 
@@ -453,15 +443,15 @@ curl "http://localhost:8000/api/phishing/stats"
 | config.py | Settings hub | Everything |
 | api_client.py | PhishStats API wrapper | cache_service, models |
 | models.py | Data validation | api_client, services, routes |
-| database.py | Persistent storage | services |
+| data-extraction-worker/ | D1 ingest + map `GET /` | Cloudflare D1, Pages |
 | services/cache_service.py | Caching with timestamps | api_client |
-| services/phishing_service.py | Core business logic | api_client, models, database |
+| services/phishing_service.py | Core business logic | api_client, models |
 | services/analytics_service.py | Analytics & insights | phishing_service |
 | routes/phishing.py | HTTP endpoints for incidents | phishing_service |
 | routes/analytics.py | HTTP endpoints for analytics | analytics_service |
 | main.py | FastAPI app initialization | routes, config |
 | requirements.txt | Python dependencies | pip install |
-| migrations/001_initial_schema.sql | Database schema | database.py |
+| migrations/001_initial_schema.sql | Optional local SQLite schema | manual / experiments |
 
 ---
 
@@ -471,20 +461,17 @@ curl "http://localhost:8000/api/phishing/stats"
    - Verify api_client.py handles PhishStats response format
    - Add any missing fields from API responses to models.py
 
-2. **Thomas** (Backend/Database):
-   - Connect to actual Cloudflare D1 (replace SQLite in production)
-   - Add database query optimizations
-   - Implement backup/retention policies
+2. **Thomas** (D1):
+   - Schema + `queries.ts` for `phishing_links`; backups
 
-3. **Matthew** (Frontend Integration):
-   - Test each endpoint with frontend
-   - Verify CORS is working
-   - Implement error handling in frontend
+3. **Matt** (map feed + ingest binds):
+   - `data-extraction-worker` mapping + HTTP; coordinate with frontend row shape
 
-4. **Bryon** (Architecture/Hosting):
-   - Set up Cloudflare deployment
-   - Configure environment variables
-   - Monitor API rate limits
+4. **Bryon** (frontend / DevOps):
+   - Pages + Worker deploys; `D1_WORKER_URL` secret if needed
+
+5. **Matthew** (UI):
+   - Map + filters; test against Worker JSON or FastAPI
 
 ---
 
@@ -493,7 +480,8 @@ curl "http://localhost:8000/api/phishing/stats"
 ```
 DEBUG=True
 LOG_LEVEL=INFO
-CLOUDFLARE_D1_CONNECTION=your_cloudflare_connection_string
+# CLOUDFLARE_D1_CONNECTION — present in config; FastAPI services do not query D1 in the current codebase.
+CLOUDFLARE_D1_CONNECTION=
 DATABASE_PATH=./data/phishing.db
 FRONTEND_ORIGIN=http://localhost:3000
 # Optional: https://your-project.pages.dev,https://preview.pages.dev

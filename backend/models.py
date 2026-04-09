@@ -13,7 +13,7 @@ WHAT THIS FILE DOES:
 WHAT IT CONNECTS TO:
 - api_client.py: Validates raw PhishStats API responses
 - services/phishing_service.py: Uses these models to validate processed data
-- database.py: Maps models to database tables
+- D1 persistence: backend/data-extraction-worker (not used by FastAPI services today)
 - routes/: Defines request/response schemas
 
 ARCHITECTURE:

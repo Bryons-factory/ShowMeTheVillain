@@ -33,14 +33,21 @@
 │  │    NO  → Fetch from API, cache it, return it            │       │
 │  └───────────────────────────────────────────────────────────┘       │
 │                                                                       │
-│  ┌──────────────────────────────────────────────────────────┐       │
-│  │              DATABASE (Cloudflare D1)                    │       │
-│  │  - Stores incidents for historical analysis              │       │
-│  │  - Tracks cache metadata                                 │       │
-│  │  - Enables future optimizations                          │       │
-│  └──────────────────────────────────────────────────────────┘       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+**Note:** Persistent phishing rows for the **hosted map** live in **Cloudflare D1** (`phishing_links`), written by the **TypeScript Worker** in `backend/data-extraction-worker` and read by that Worker’s **`GET /`** handler. The FastAPI stack above uses **PhishStats + cache** only; it does not query D1 in the current Python code. See **Cloudflare: D1 and map data** below.
+
+---
+
+## Cloudflare: D1 and map data
+
+| Piece | Role |
+|--------|------|
+| **`backend/data-extraction-worker`** | Cron ingests PhishStats → D1; **`fetch`** serves map JSON from D1 (`GET /`, optional `?limit=`). |
+| **Cloudflare Pages** | `frontend/index.html` with `data-source=worker` and `api-base` = that Worker’s HTTPS URL (see `frontend/scripts/patch_pages_meta.py` + CI). |
+| **FastAPI** (`main.py`) | `/api/phishing/map-points` and related routes use **`api_client.fetch_incidents()`**, not D1. Use for local dev or API consumers that hit your Python server. |
+| **`frontend/entry.py` (Python Worker)** | Optional BFF: demo JSON or proxy via `BACKEND_MAP_URL`; **not** the primary map source when Pages targets the D1 Worker. |
 
 ---
 
@@ -124,7 +131,11 @@ Does NOT do:
 
 ## Data Flow: Request to Response
 
-The hosted **ShowMeTheVillain** page calls `GET /api/phishing/map-points` and filters in the browser; the same cache and `api_client.fetch_incidents()` path applies as below, then incidents are mapped to `MapPoint` JSON. The following walkthrough uses the legacy **heatmap** endpoint for illustration (`HeatmapData` with `coordinates` only).
+**Hosted Pages map:** The static app calls **`GET {api-base}/`** (Worker, `data-source=worker`) and receives a JSON array of map rows from **D1**; filters run in the browser.
+
+**FastAPI path:** When the frontend uses `data-source=api`, it calls `GET /api/phishing/map-points`; **`api_client.fetch_incidents()`** and cache apply, then incidents map to `MapPoint` JSON.
+
+The following walkthrough uses the legacy **heatmap** endpoint for illustration (`HeatmapData` with `coordinates` only).
 
 ### Request 1: Get Heatmap (Cache Hit - FAST!)
 
@@ -460,10 +471,9 @@ Maintainability:
   ✓ Easy for new developers to understand
 
 Frontend Agnosticism:
-  ✓ Frontend doesn't know about PhishStats
-  ✓ Frontend doesn't manage cache
-  ✓ Frontend doesn't implement rate limiting
-  ✓ Backend is the "source of truth"
+  ✓ Hosted map does not call PhishStats from the browser
+  ✓ FastAPI still hides PhishStats + cache for api-mode clients
+  ✓ Rate limiting remains in api_client for Python path
 ```
 
 ---
@@ -471,19 +481,22 @@ Frontend Agnosticism:
 ## Next: What Your Team Does
 
 ```
-Ethan (API):
-  └─ Verify api_client.py handles PhishStats correctly
+Ethan (ingest):
+  └─ data-extraction-worker: PhishStats paging + cron (src/phishstats.ts, cursor.ts)
 
-Thomas (Database):
-  └─ Connect to actual Cloudflare D1
+Thomas (D1):
+  └─ schema.sql, D1 migrations, MAP_POINTS_SELECT_SQL / UPSERT alignment in queries.ts
 
-Matthew (Frontend):
-  └─ Test endpoints from React code
+Matt (map feed + ingest binds):
+  └─ transform.ts, map-points.ts, Worker fetch handler
 
-Bryon (DevOps):
-  └─ Deploy to Cloudflare Workers
+Bryon (frontend / DevOps):
+  └─ Pages meta, CI, wrangler deploys; FastAPI for local api-mode dev
+
+Matthew (UI):
+  └─ Map + filters in frontend/index.html (consumes JSON array from Worker or FastAPI)
 ```
 
 ---
 
-**Everything is ready. Everything is documented. Let's build! 🚀**
+**See also:** [`backend/data-extraction-worker/README.md`](data-extraction-worker/README.md) for D1 ingest + map HTTP API.

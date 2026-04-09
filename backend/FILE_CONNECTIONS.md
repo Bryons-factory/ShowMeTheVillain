@@ -4,15 +4,18 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│         FRONTEND (index.html / Pages + optional Worker)         │
-│  Calls: GET /api/phishing/map-points (Plotly + filters)         │
-│          GET /api/phishing/heatmap (legacy coordinate pairs)     │
-│          GET /api/analytics/overview                             │
+│         FRONTEND (index.html / Pages)                            │
+│  Hosted map: GET {D1 Worker}/  (data-source=worker, D1 JSON)     │
+│  FastAPI mode: GET /api/phishing/map-points, /heatmap, analytics  │
 └─────────────────┬───────────────────────────────────────────────┘
                   │ HTTP/JSON
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      main.py                                     │
+│  data-extraction-worker (Cloudflare): cron → D1; fetch → map JSON│
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                      main.py (FastAPI, optional local/API clients)│
 │  ├─ Initializes FastAPI                                          │
 │  ├─ Registers routes                                             │
 │  ├─ Configures CORS                                              │
@@ -52,8 +55,8 @@
                    │
         ┌──────────┴──────────┐
         ▼                     ▼
-   api_client.py         (future: database.py)
-   (External API)        (Persistent Storage)
+   api_client.py         D1 via data-extraction-worker
+   (PhishStats + cache)  (not queried by Python services today)
         │
         ├─ config.py
         │  └─ PHISHSTATS_API_URL
@@ -79,7 +82,6 @@
 ```
 Provides settings to:
 ├─ api_client.py (API URL, timeout)
-├─ database.py (DB connection)
 ├─ main.py (host, port, CORS)
 └─ services/ (all app settings)
 ```
@@ -119,17 +121,12 @@ Ensures:
 └─ All required fields are present
 ```
 
-### database.py (Persistent Storage)
+### Cloudflare D1 (`data-extraction-worker/`)
 ```
-Used by:
-├─ services/phishing_service.py (store/query incidents)
-├─ services/analytics_service.py (query historical data)
-└─ (future enhancement for performance)
+Writes: cron ingest → phishing_links
+Reads: GET / → map JSON for Pages (data-source=worker)
 
-Contains:
-├─ phishing_incidents table
-├─ cache_metadata table
-└─ request_logs table (optional)
+Not used by: services/phishing_service.py (uses api_client only)
 ```
 
 ### services/phishing_service.py (Core Business Logic)
@@ -137,7 +134,6 @@ Contains:
 Uses:
 ├─ api_client.py (get raw incidents)
 ├─ models.py (validate incidents)
-└─ database.py (store/query incidents)
 
 Called by:
 ├─ routes/phishing.py (HTTP endpoints)
@@ -243,23 +239,10 @@ Code quality:
 └─ mypy (type checker)
 ```
 
-### migrations/001_initial_schema.sql (Database Schema)
+### migrations/001_initial_schema.sql (optional local SQLite)
 ```
-Defines tables used by:
-├─ database.py (creates tables)
-└─ services/ (queries tables)
-
-Creates:
-├─ phishing_incidents table
-├─ cache_metadata table
-└─ request_logs table (optional)
-
-Indexes for fast queries on:
-├─ threat_level
-├─ company
-├─ country
-├─ coordinates (lat, lon)
-└─ created_at
+Legacy / local experiments — not wired to phishing_service.
+Production rows: data-extraction-worker/schema.sql → D1 phishing_links
 ```
 
 ---
@@ -268,17 +251,19 @@ Indexes for fast queries on:
 
 ### Example 1: Map points (ShowMeTheVillain UI)
 ```
+Production (Pages, data-source=worker):
 Frontend
-  ↓ GET /api/phishing/map-points?limit=500
-main.py
-  ↓ routes/phishing.py
-phishing_service.get_map_points(...)
-  ├─ get_filtered_incidents() → api_client.fetch_incidents() + validate
-  └─ Map each incident → models.MapPoint
-  ↓
-JSON array of { lat, lon, intensity, name, threat_level, company, country, isp }
+  ↓ GET https://<data-extraction-worker>/?limit=800
+data-extraction-worker (fetch)
+  ├─ D1 MAP_POINTS_SELECT_SQL
+  └─ map-points.ts → JSON array
   ↓
 Plotly map + client-side toolbar filters
+
+Local FastAPI (data-source=api):
+Frontend
+  ↓ GET /api/phishing/map-points?limit=500
+phishing_service.get_map_points → api_client.fetch_incidents() → MapPoint
 ```
 
 ### Example 1b: Heatmap Request (legacy)
@@ -357,12 +342,11 @@ Routes (routes/*.py)
 ├─ "What response format should I return?"
 └─ "How do I handle errors?"
 
-Database (database.py)
-├─ "How do I store this incident?"
-├─ "How do I query historical data?"
-└─ "How do I maintain data integrity?"
+D1 Worker (data-extraction-worker)
+├─ "Ingest PhishStats into phishing_links"
+└─ "Serve map rows from D1 on GET /"
 
-Frontend (map.py)
+Frontend (index.html)
 ├─ "Just get the data and show it on the map!"
 ├─ "Don't worry about rate limits"
 └─ "Don't worry about caching"
@@ -377,9 +361,9 @@ Frontend (map.py)
 | config.py | 120 | Settings hub | Everything |
 | api_client.py | 200 | PhishStats API wrapper | cache_service, models |
 | models.py | 180 | Data validation | api_client, routes, services |
-| database.py | 250 | Persistent storage | services |
+| data-extraction-worker/ | — | D1 ingest + map API | D1, Pages |
 | services/cache_service.py | 150 | Caching layer | api_client |
-| services/phishing_service.py | 280 | Core business logic | api_client, models, database |
+| services/phishing_service.py | 280 | Core business logic | api_client, models |
 | services/analytics_service.py | 250 | Analytics engine | phishing_service |
 | routes/phishing.py | 200 | HTTP endpoints | phishing_service, models |
 | routes/analytics.py | 220 | HTTP endpoints | analytics_service |

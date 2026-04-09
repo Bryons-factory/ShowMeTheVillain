@@ -98,3 +98,23 @@ ON CONFLICT(id) DO UPDATE SET
 
 export const GET_OLDEST_DATE_SQL =
   "SELECT MIN(date) AS oldest_date FROM phishing_links";
+
+/** Latest rows with coordinates for the map API (Tom: keep columns in sync with schema.sql). */
+export const MAP_POINTS_SELECT_SQL = `
+SELECT
+    latitude,
+    longitude,
+    score,
+    title,
+    host,
+    domain,
+    countryname,
+    isp,
+    tags,
+    date
+FROM phishing_links
+WHERE latitude IS NOT NULL
+  AND longitude IS NOT NULL
+ORDER BY date DESC
+LIMIT ?
+`.trim();

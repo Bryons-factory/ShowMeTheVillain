@@ -24,19 +24,17 @@ API CLIENT / DATABASE (External Systems)
 ```
 
 ### Key Principle:
-**Frontend never talks to PhishStats directly.** Everything goes through your backend.
+**The browser never calls PhishStats directly.** Map data comes from either:
+
+- **Hosted (Cloudflare Pages):** `data-source=worker` → **TypeScript Worker** `GET /` reads **D1** (`phishing_links`).
+- **Local / api mode:** `data-source=api` → **FastAPI** → **PhishStats** (with cache), not D1 in the current Python code.
 
 ```
-Frontend:
-  "Hey backend, give me heatmap data for critical threats"
+Hosted frontend:
+  "GET {Worker URL}/ → JSON array from D1"
 
-Backend:
-  "Sure! Let me check if I have fresh cache...
-   (Yes? Return it immediately!)
-   (No? Fetch from API, cache it, return it)"
-
-Frontend:
-  "Thanks! I don't care how you got it, just show it on the map!"
+Local with FastAPI:
+  "GET /api/phishing/map-points → PhishStats + cache → MapPoint JSON"
 ```
 
 ---
@@ -45,12 +43,14 @@ Frontend:
 
 ```
 backend/
-├── ✅ Core Files (5)
+├── ✅ Core Files (4)
 │   ├── config.py           - All settings
 │   ├── api_client.py       - PhishStats API wrapper
 │   ├── models.py           - Data validation
-│   ├── database.py         - Database operations
 │   └── main.py             - FastAPI initialization
+│
+├── ✅ Cloudflare Worker (D1 ingest + map API)
+│   └── data-extraction-worker/   - Cron → D1; GET / → map JSON (see its README)
 │
 ├── ✅ Services (3)
 │   ├── cache_service.py    - Caching (respects rate limits!)
@@ -101,7 +101,7 @@ Response: {coordinates: [[lat, lon], ...], incident_count: 342}
 
 **What it does**:
 - Implements the actual logic
-- Calls API client or database
+- Calls API client (FastAPI path) or consumes data shaped for the UI
 - Processes and transforms data
 - Filters, validates, aggregates
 
@@ -114,15 +114,15 @@ phishing_service.get_heatmap_data(threat_level='high'):
   4. Return HeatmapData object
 ```
 
-### Layer 3: API Client & Database
+### Layer 3: API Client (and D1 outside FastAPI)
 
-**Files**: `api_client.py`, `database.py`
+**Files**: `api_client.py`; **D1** is used by `data-extraction-worker/` (not `database.py` in this repo).
 
 **What it does**:
-- Talks to PhishStats API
+- Talks to PhishStats API (Python path)
 - Manages caching (respects rate limits!)
-- Stores/retrieves from database
 - Validates data with models
+- **Persistent store:** D1 `phishing_links` via TypeScript Worker (ingest + read for hosted map)
 
 **Example**:
 ```
@@ -243,26 +243,23 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 - Add any missing fields to models.py if needed
 - Test: `curl http://localhost:8000/api/phishing/`
 
-### Thomas (Backend/Database)
-✅ **What's done**: SQLite schema and database.py  
+### Thomas (D1 / schema)
+✅ **What's done**: D1 `phishing_links` via `data-extraction-worker`; `schema.sql` + ingest/read SQL in `queries.ts`  
 ⬜ **Your job**:
-- Connect to actual Cloudflare D1 (update database.py connection string)
-- Review migrations/001_initial_schema.sql for any needed changes
-- Plan backup/retention strategy
+- Keep `schema.sql` aligned with production D1; migrations / backups
+- Coordinate `MAP_POINTS_SELECT_SQL` and `UPSERT_SQL` with ingest and map mapping
 
-### Matthew (Frontend Integration)
-✅ **What's done**: All REST endpoints documented  
+### Matthew (Map data feed + ingest binds)
+✅ **What's done**: Worker `transform.ts`, `map-points.ts`, `GET /` from D1  
 ⬜ **Your job**:
-- Test endpoints from React code
-- Verify CORS is working (should be automatic)
-- Implement error handling for frontend
+- Adjust row → JSON mapping and thresholds as the product evolves
+- Keep CORS and `limit` behavior documented for the frontend
 
-### Bryon (DevOps/Hosting)
-✅ **What's done**: Complete app ready to deploy  
+### Bryon (Frontend / DevOps)
+✅ **What's done**: Pages + CI patch `api-base` to D1 Worker URL  
 ⬜ **Your job**:
-- Set up Cloudflare D1 and environment variables
-- Configure deployment pipeline
-- Set up monitoring and logging
+- `frontend/index.html` meta tags; GitHub Actions secrets (`D1_WORKER_URL` fallback)
+- Local dev: FastAPI (`api`) vs `wrangler dev` (`worker`)
 
 ---
 
@@ -294,22 +291,22 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 - Example usage in docstrings
 
 ✅ **Frontend Agnosticism**
-- Frontend never talks to PhishStats
-- Frontend doesn't manage cache
-- Backend handles all complexity
+- Hosted map: Worker + D1 (no PhishStats in the browser)
+- FastAPI path: PhishStats + cache hidden behind `/api/phishing/*`
 
 ---
 
 ## What You DON'T Need to Worry About
 
-❌ "Which API are we using?" - Backend handles it
-❌ "How do we handle rate limits?" - Cache service does it
-❌ "Do we have fresh data?" - Cache checks it
-❌ "How do we filter by threat level?" - Service does it
-❌ "Is the data valid?" - Models validate it
-❌ "What do we return to frontend?" - Routes format it
+**Hosted Pages (`data-source=worker`):** the page only needs a JSON array; Worker reads D1.
 
-**The hosted map uses `GET /api/phishing/map-points` (Plotly + filter bar).** `GET /api/phishing/heatmap` remains for simple `[[lat,lon], ...]` heatmaps.
+**Local FastAPI (`data-source=api`):**
+
+❌ "Which API are we using?" - `api_client` handles PhishStats  
+❌ "How do we handle rate limits?" - Cache service does it  
+❌ "Is the data valid?" - Models validate it  
+
+**The hosted map uses `GET {Worker}/` (same row shape as map-points).** For local Python dev, use `GET /api/phishing/map-points`. `GET /api/phishing/heatmap` remains for simple `[[lat,lon], ...]` heatmaps.
 
 ---
 
@@ -343,19 +340,23 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 
 ## Example: How the map page gets data
 
+**Production (Pages, `data-source=worker`):**
+
 ```javascript
-// ShowMeTheVillain index.html (Plotly density map + toolbar filters)
-async function getMapPoints() {
-  const response = await fetch(
-    'http://localhost:8000/api/phishing/map-points?limit=500'
-  );
-  const rows = await response.json();
-  // rows[].lat, lon, intensity, name, threat_level, company, country, isp
-  return rows;
-}
+const base = 'https://data-extraction-worker.<subdomain>.workers.dev'; // patched in CI
+const response = await fetch(base + '/?limit=800');
+const rows = await response.json();
+// rows[].lat, lon, intensity, name, threat_level, company, country, isp
 ```
 
-**Backend handles:** cache, PhishStats fetch, validation, and mapping to `MapPoint` rows.
+**Local FastAPI (`data-source=api`):**
+
+```javascript
+const response = await fetch('http://localhost:8000/api/phishing/map-points?limit=500');
+const rows = await response.json();
+```
+
+**Worker path:** D1 read + `map-points.ts` mapping. **FastAPI path:** cache, PhishStats, `PhishingService` → `MapPoint`.
 
 **Legacy heatmap** (`HeatmapData` with `coordinates` only) is still `GET /api/phishing/heatmap`.
 
@@ -365,15 +366,15 @@ async function getMapPoints() {
 
 Before deploying, your team needs to:
 
-- [ ] Connect to Cloudflare D1 (update config.py)
-- [ ] Set environment variables (.env file)
-- [ ] Test all endpoints work
-- [ ] Verify CORS is configured correctly (`FRONTEND_ORIGIN`, `FRONTEND_ORIGINS` for Pages)
+- [ ] D1 database created; `schema.sql` applied; `data-extraction-worker` deployed (ingest + `GET /`)
+- [ ] CI: `D1_WORKER_URL` secret if wrangler output URL is not parsed; Pages patch uses that Worker
+- [ ] Set environment variables (.env for FastAPI local)
+- [ ] Test FastAPI endpoints if you use `data-source=api`
+- [ ] Verify CORS (`FRONTEND_ORIGIN`, `FRONTEND_ORIGINS` for FastAPI; Worker map uses `*` today)
 - [ ] Set up logging/monitoring
 - [ ] Configure API key for PhishStats (if required)
-- [ ] Test frontend-backend communication
-- [ ] Set up automated database backups
-- [ ] Configure rate limiting if needed
+- [ ] Test frontend ↔ Worker (hosted) and/or frontend ↔ FastAPI (local)
+- [ ] Set up automated D1 backups
 - [ ] Set up CDN/caching for static files
 
 ---
@@ -382,11 +383,11 @@ Before deploying, your team needs to:
 
 **You now have a complete, documented backend that:**
 
-1. ✅ Fetches phishing data from PhishStats API
-2. ✅ Respects API rate limits with intelligent caching
-3. ✅ Stores data in a database
-4. ✅ Validates all incoming and outgoing data
-5. ✅ Provides multiple REST endpoints for your frontend
+1. ✅ Ingests PhishStats into D1 via Cloudflare Worker (cron)
+2. ✅ Serves map JSON from D1 via same Worker (`GET /`)
+3. ✅ FastAPI path: PhishStats + cache + REST endpoints for local/API clients
+4. ✅ Validates data (Pydantic in Python; mapping in Worker for map rows)
+5. ✅ Hosted map: Pages + Worker + D1; optional FastAPI for development
 6. ✅ Generates analytics and insights
 7. ✅ Handles errors gracefully
 8. ✅ Auto-generates API documentation
@@ -403,8 +404,8 @@ Before deploying, your team needs to:
 2. **Run the server** and visit http://localhost:8000/docs
 3. **Try the endpoints** using Swagger UI
 4. **Have each team member review** their relevant files
-5. **Connect to Cloudflare D1** for production
-6. **Deploy and celebrate!** 🎉
+5. **Deploy `data-extraction-worker` + Pages** (D1 ingest + map `GET /`; see `data-extraction-worker/README.md`)
+6. **Deploy and verify** map loads from the Worker URL in production
 
 ---
 
@@ -443,4 +444,4 @@ Each file has:
 
 ---
 
-**Let's build something amazing! 🚀**
+**See `data-extraction-worker/README.md` for the D1 + map API source of truth.**

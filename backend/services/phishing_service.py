@@ -14,7 +14,7 @@ WHAT THIS FILE DOES:
 WHAT IT CONNECTS TO:
 - api_client.py: Calls fetch_incidents() to get raw data
 - models.py: Validates data using PhishingIncident model
-- database.py: Stores/retrieves data from Cloudflare D1
+- D1: populated/read by data-extraction-worker; Python services use api_client only
 - routes/phishing.py: Called by routes to fetch/filter data
 - config.py: Uses validation limits
 

@@ -26,7 +26,7 @@ ARCHITECTURE:
     4. Starts server on port 8000
     
     Then incoming HTTP requests flow through:
-    routes -> services -> api_client/database
+    routes -> services -> api_client (D1: data-extraction-worker, not FastAPI)
 
 FEATURES:
     - Auto-generated Swagger UI at: http://localhost:8000/docs
