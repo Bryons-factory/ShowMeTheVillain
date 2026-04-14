@@ -51,3 +51,4 @@ CREATE TABLE IF NOT EXISTS phishing_links (
     ssl_fingerprint TEXT,
     inserted_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
