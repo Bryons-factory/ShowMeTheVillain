@@ -86,6 +86,10 @@ class JsonItem(TypedDict):
 # NOTE: FilterFunctions
 
 
+def isNull(item: JsonItem) -> bool:
+    return (item["lat"] == 0 and item["lon"] == 0)
+
+
 def isNone(item: JsonItem) -> bool:
     return item["threat_level"] == "none"
 
@@ -145,7 +149,9 @@ class JsonBuilder:
                 return self.items
             else:
                 for object in self.objects:
-                    self.items.append(self.createDataPoint(object))
+                    item: JsonItem = self.createDataPoint(object)
+                    if (not isNull(item)):
+                        self.items.append(item)
 
         return self.items
 
