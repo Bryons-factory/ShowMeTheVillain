@@ -229,7 +229,7 @@ class PhishingService:
         company: Optional[str] = None,
         country: Optional[str] = None,
         isp: Optional[str] = None,
-        limit: int = 100,
+        limit: Optional[int] = 100,
         offset: int = 0
     ) -> List[PhishingIncident]:
         """
@@ -240,7 +240,7 @@ class PhishingService:
             company: Filter by targeted company
             country: Filter by country of origin
             isp: Filter by Internet Service Provider
-            limit: Maximum results to return
+            limit: Maximum results to return; None returns all matches after offset
             offset: Skip this many results (for pagination)
         
         Returns:
@@ -285,7 +285,10 @@ class PhishingService:
                 ]
             
             # Apply pagination
-            incidents = incidents[offset:offset + limit]
+            if limit is None:
+                incidents = incidents[offset:]
+            else:
+                incidents = incidents[offset : offset + limit]
             
             logger.info(f"✓ Returned {len(incidents)} filtered incidents")
             return incidents
@@ -300,7 +303,7 @@ class PhishingService:
         company: Optional[str] = None,
         country: Optional[str] = None,
         isp: Optional[str] = None,
-        limit: int = 500,
+        limit: Optional[int] = None,
         offset: int = 0,
     ) -> List[MapPoint]:
         """

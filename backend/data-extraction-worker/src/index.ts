@@ -6,14 +6,18 @@ import {
 } from "./cursor";
 import type { Env } from "./env";
 import { fetchBatch } from "./phishstats";
-import { MAP_POINTS_SELECT_SQL, UPSERT_SQL } from "./queries";
+import {
+  MAP_POINTS_SELECT_NO_LIMIT_SQL,
+  MAP_POINTS_SELECT_SQL,
+  UPSERT_SQL,
+} from "./queries";
 import { rowToMapPoint, filterMapPoints } from "./map-points";
 import { buildParams } from "./transform";
 
 export type { Env };
 
-const DEFAULT_MAP_LIMIT = 800;
-const MAX_MAP_LIMIT = 2000;
+/** Upper bound when a numeric ?limit= is provided (avoids accidental huge binds). */
+const MAX_MAP_LIMIT = 10_000_000;
 
 const CORS_JSON_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
@@ -27,11 +31,11 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function parseMapLimit(url: URL): number {
+function parseMapLimit(url: URL): number | null {
   const raw = url.searchParams.get("limit");
-  if (!raw) return DEFAULT_MAP_LIMIT;
+  if (!raw || raw.toLowerCase() === "all") return null;
   const n = parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAP_LIMIT;
+  if (!Number.isFinite(n) || n < 1) return null;
   return Math.min(n, MAX_MAP_LIMIT);
 }
 
@@ -100,9 +104,11 @@ export default {
     };
 
     try {
-      const { results } = await env.DB.prepare(MAP_POINTS_SELECT_SQL)
-        .bind(limit)
-        .all<Record<string, unknown>>();
+      const stmt =
+        limit === null
+          ? env.DB.prepare(MAP_POINTS_SELECT_NO_LIMIT_SQL)
+          : env.DB.prepare(MAP_POINTS_SELECT_SQL).bind(limit);
+      const { results } = await stmt.all<Record<string, unknown>>();
       let rows = (results ?? [])
         .map((r) => rowToMapPoint(r))
         .filter((p): p is NonNullable<typeof p> => p !== null);

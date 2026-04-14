@@ -118,3 +118,22 @@ WHERE latitude IS NOT NULL
 ORDER BY date DESC
 LIMIT ?
 `.trim();
+
+/** Same as MAP_POINTS_SELECT_SQL but returns every row with coordinates (optional limit=all). */
+export const MAP_POINTS_SELECT_NO_LIMIT_SQL = `
+SELECT
+    latitude,
+    longitude,
+    score,
+    title,
+    host,
+    domain,
+    countryname,
+    isp,
+    tags,
+    date
+FROM phishing_links
+WHERE latitude IS NOT NULL
+  AND longitude IS NOT NULL
+ORDER BY date DESC
+`.trim();

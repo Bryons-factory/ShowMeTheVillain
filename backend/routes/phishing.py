@@ -37,8 +37,8 @@ API ENDPOINTS PROVIDED:
 
     GET /api/phishing/map-points
         - Plotly map: JSON array of { lat, lon, intensity, name, threat_level, company, country, isp }
-        - Query params: threat_level, company, country, isp, limit, offset (optional server-side filters;
-          use a higher limit when the browser filters client-side)
+        - Query params: threat_level, company, country, isp, limit (optional), offset (optional server-side filters;
+          omit limit to return all cached points)
     
     GET /api/phishing/filtered
         - Get incidents with multiple filters
@@ -51,7 +51,7 @@ HOW TO USE:
     These endpoints are automatically registered with FastAPI in main.py
     
     Frontend can call:
-        - fetch('/api/phishing/map-points?limit=500')
+        - fetch('/api/phishing/map-points')
         - fetch('/api/phishing/heatmap')
         - fetch('/api/phishing/?limit=100&threat_level=high')
         - fetch('/api/phishing/filtered?company=PayPal')
@@ -238,13 +238,18 @@ async def get_map_points(
     company: Optional[str] = Query(None),
     country: Optional[str] = Query(None),
     isp: Optional[str] = Query(None),
-    limit: int = Query(500, ge=1, le=1000),
+    limit: Optional[int] = Query(
+        None,
+        ge=1,
+        description="Maximum points to return; omit for all incidents in cache (after filters).",
+    ),
     offset: int = Query(0, ge=0),
 ):
     """
     Points for the ShowMeTheVillain Plotly map (densitymapbox).
 
     Example:
+        GET /api/phishing/map-points
         GET /api/phishing/map-points?limit=200
 
         Response:
