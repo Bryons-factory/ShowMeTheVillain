@@ -41,6 +41,9 @@ async function runOnce(
   batchSize: number,
   overlapMinutes: number
 ): Promise<{ nextCursor: string | null; count: number }> {
+  console.log(
+    `phishstats-ingest: runOnce cursor=${cursor ?? "null"} batchSize=${String(batchSize)}`
+  );
   const records = await fetchBatch(batchSize, cursor);
 
   if (records.length === 0) {
@@ -53,6 +56,11 @@ async function runOnce(
     return stmt.bind(...params);
   });
   await env.DB.batch(statements);
+
+  const firstId = records[0]?.["id"];
+  console.log(
+    `phishstats-ingest: D1 batch ok (${String(records.length)} statements), first_id=${String(firstId ?? "n/a")}`
+  );
 
   const oldest = getOldestDate(records);
   if (!oldest) {
@@ -121,6 +129,9 @@ export default {
   ): Promise<void> {
     const cfg = getIngestConfig(env);
     let cursor = await getCurrentCursor(env.DB, cfg.overlapMinutes);
+    console.log(
+      `phishstats-ingest: start cursor=${cursor ?? "null"} batchSize=${String(cfg.batchSize)} overlapMinutes=${String(cfg.overlapMinutes)} maxBatchesPerRun=${String(cfg.maxBatchesPerRun)}`
+    );
     let totalUpserted = 0;
     let batches = 0;
 
