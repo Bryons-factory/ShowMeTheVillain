@@ -3,6 +3,8 @@
 --   npx wrangler d1 execute phishnstatsdb --file=./schema.sql
 -- (Use your wrangler.toml database_name if different.)
 
+-- Made By: Tom
+
 CREATE TABLE IF NOT EXISTS phishing_links (
     id INTEGER PRIMARY KEY,
     url TEXT NOT NULL,
