@@ -2,6 +2,19 @@
 
 export type PhishStatsRecord = Record<string, unknown>;
 
+/** Keeps D1 row size predictable (PhishStats `page_text` can be very large). */
+const PAGE_TEXT_MAX_CHARS = 100_000;
+
+function truncateStringField(value: unknown, maxLen: number): unknown {
+  if (value == null || typeof value !== "string") {
+    return value;
+  }
+  if (value.length <= maxLen) {
+    return value;
+  }
+  return value.slice(0, maxLen);
+}
+
 export function normalizeNumber(
   value: unknown,
   asInt = false
@@ -58,7 +71,7 @@ export function buildParams(record: PhishStatsRecord): unknown[] {
     record["os"],
     record["tags"],
     record["technology"],
-    record["page_text"],
+    truncateStringField(record["page_text"], PAGE_TEXT_MAX_CHARS),
     record["ssl_fingerprint"],
   ];
 }
