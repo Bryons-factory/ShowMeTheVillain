@@ -221,6 +221,16 @@ async function getCurrentCursor(db, overlapMinutes) {
 __name(getCurrentCursor, "getCurrentCursor");
 
 // src/phishstats.ts
+var OUTBOUND_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": "ShowMeTheVillain-data-extraction-worker/1.0 (Cloudflare Worker)"
+};
+function truncateForLog(value, maxChars = 512) {
+  const raw = value === null || value === void 0 ? String(value) : typeof value === "object" ? JSON.stringify(value) : String(value);
+  if (raw.length <= maxChars) return raw;
+  return `${raw.slice(0, maxChars)}\u2026`;
+}
+__name(truncateForLog, "truncateForLog");
 async function fetchBatch(batchSize, cursor) {
   const params = new URLSearchParams({
     _sort: "date",
@@ -230,7 +240,8 @@ async function fetchBatch(batchSize, cursor) {
     params.set("_where", `(date,gt,${cursor})`);
   }
   const url = `${PHISHSTATS_API_URL}?${params.toString()}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: OUTBOUND_HEADERS });
+  const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) {
     throw new Error(
       `PhishStats HTTP ${response.status}: ${await response.text()}`
@@ -238,8 +249,14 @@ async function fetchBatch(batchSize, cursor) {
   }
   const data = await response.json();
   if (!Array.isArray(data)) {
-    return [];
+    console.error(
+      `phishstats-fetch: expected JSON array; Content-Type=${contentType} status=${response.status} body=${truncateForLog(data)}`
+    );
+    throw new Error(
+      `PhishStats response must be a top-level JSON array (got ${typeof data})`
+    );
   }
+  console.log(`phishstats-fetch: GET ${url} \u2192 ${String(data.length)} row(s)`);
   return data;
 }
 __name(fetchBatch, "fetchBatch");
@@ -349,6 +366,17 @@ function gridCellToMapPoint(row) {
 __name(gridCellToMapPoint, "gridCellToMapPoint");
 
 // src/transform.ts
+var PAGE_TEXT_MAX_CHARS = 1e5;
+function truncateStringField(value, maxLen) {
+  if (value == null || typeof value !== "string") {
+    return value;
+  }
+  if (value.length <= maxLen) {
+    return value;
+  }
+  return value.slice(0, maxLen);
+}
+__name(truncateStringField, "truncateStringField");
 function normalizeNumber(value, asInt = false) {
   if (value === null || value === void 0 || value === "") {
     return null;
@@ -402,7 +430,7 @@ function buildParams(record) {
     record["os"],
     record["tags"],
     record["technology"],
-    record["page_text"],
+    truncateStringField(record["page_text"], PAGE_TEXT_MAX_CHARS),
     record["ssl_fingerprint"]
   ];
 }
