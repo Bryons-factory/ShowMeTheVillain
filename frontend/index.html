@@ -56,13 +56,43 @@
             outline: 2px solid #5c9ce6;
             outline-offset: 1px;
         }
-        #status {
+        .filter-bar-right {
             margin-left: auto;
-            font-size: 13px;
-            color: #bdc1c6;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 14px;
             max-width: 100%;
         }
+        #status {
+            font-size: 13px;
+            color: #bdc1c6;
+            max-width: min(100%, 28rem);
+        }
         #status.error { color: #f28b82; }
+        .toolbar-about-btn {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 7px 14px;
+            border-radius: 6px;
+            border: 1px solid #5c9ce6;
+            background: #2d3139;
+            color: #e8eaed;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .toolbar-about-btn:hover {
+            background: #3c4250;
+            color: #fff;
+        }
+        .toolbar-about-btn:focus {
+            outline: 2px solid #5c9ce6;
+            outline-offset: 2px;
+        }
         .map-wrap {
             flex: 1;
             min-height: 0;
@@ -101,7 +131,10 @@
             <label for="filter-isp">ISP
                 <select id="filter-isp" aria-label="Filter by ISP"></select>
             </label>
-            <div id="status" role="status">Loading threat data…</div>
+            <div class="filter-bar-right">
+                <div id="status" role="status">Loading threat data…</div>
+                <a href="about.html" class="toolbar-about-btn">About the project</a>
+            </div>
         </header>
         <div class="map-wrap">
             <div id="villain-map" aria-label="Threat density map"></div>

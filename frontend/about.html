@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>About — ShowMeTheVillain</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; font-family: system-ui, Segoe UI, Arial, sans-serif; }
+        body {
+            background: #1a1d23;
+            color: #e8eaed;
+            line-height: 1.55;
+        }
+        .wrap {
+            max-width: 42rem;
+            margin: 0 auto;
+            padding: 28px 18px 48px;
+        }
+        .nav-top {
+            margin-bottom: 22px;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            padding: 7px 14px;
+            border-radius: 6px;
+            border: 1px solid #5c9ce6;
+            background: #2d3139;
+            color: #e8eaed;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .back-link:hover { background: #3c4250; color: #fff; }
+        .back-link:focus {
+            outline: 2px solid #5c9ce6;
+            outline-offset: 2px;
+        }
+        h1 {
+            font-size: 1.65rem;
+            font-weight: 700;
+            margin: 0 0 10px;
+            letter-spacing: -0.02em;
+        }
+        .lede {
+            color: #9aa0a6;
+            font-size: 0.95rem;
+            margin: 0 0 28px;
+        }
+        h2 {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #9aa0a6;
+            margin: 26px 0 10px;
+            font-weight: 600;
+        }
+        p { margin: 0 0 12px; }
+        ul { margin: 0 0 12px; padding-left: 1.2rem; color: #bdc1c6; }
+        li { margin-bottom: 6px; }
+        a { color: #8ab4f8; }
+        a:hover { color: #adc6ff; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <nav class="nav-top" aria-label="Primary">
+            <a class="back-link" href="index.html">Back to map</a>
+        </nav>
+
+        <h1>ShowMeTheVillain</h1>
+        <p class="lede">Course context and what this application does.</p>
+
+        <h2>Course</h2>
+        <p>
+            This page is for your course write-up. Replace this section with your real details:
+            course title, term, institution, learning objectives, and how this project fits the syllabus.
+        </p>
+        <ul>
+            <li>What skills or outcomes does the assignment emphasize?</li>
+            <li>Team roles or individual contribution (if applicable).</li>
+        </ul>
+
+        <h2>Project</h2>
+        <p>
+            <strong>ShowMeTheVillain</strong> is a global phishing threat tracker: a Plotly density map with a top
+            filter bar (threat level, target company, country, ISP). The UI loads a batch of map points once,
+            then filters in the browser.
+        </p>
+        <p>
+            Data can come from the <strong>FastAPI</strong> backend (PhishStats pipeline with caching) or, for
+            static hosting, from a <strong>Cloudflare Worker</strong> backed by <strong>D1</strong>, depending on
+            how <code>api-base</code> and <code>data-source</code> are configured in the map page meta tags.
+        </p>
+        <p>
+            Repository and architecture notes live in the project README; use this page to explain your specific
+            course deliverables, design choices, and how to run the stack locally.
+        </p>
+    </div>
+</body>
+</html>

@@ -102,6 +102,42 @@ Use the `database_name` from [`wrangler.toml`](./wrangler.toml).
 
 ---
 
+## Troubleshooting ingest (UPSERT not running)
+
+**Map `GET /` only runs `SELECT`** on D1. **`INSERT … ON CONFLICT` (UPSERT)** runs only in the **`scheduled`** handler after PhishStats returns a non-empty **JSON array**.
+
+1. **Confirm cron, not only HTTP** — In the Cloudflare dashboard, open Worker **`data-extraction-worker`** (same name as [`wrangler.toml`](wrangler.toml)) and check **Triggers / Cron** and **Observability** for **`scheduled`** invocations. Map traffic alone will never show UPSERTs.
+
+2. **Tail logs** — From this directory (with account auth):
+
+   ```bash
+   npx wrangler tail data-extraction-worker
+   ```
+
+   Look for lines prefixed **`phishstats-ingest:`** and **`phishstats-fetch:`**. A successful cycle typically shows: **`start`** → **`runOnce`** → **`GET … → N row(s)`** → **`D1 batch ok`** → **`upserted`** / **`done`**. **`phishstats-ingest: fatal`** or **`phishstats-fetch: expected JSON array`** means the API returned a non-array body (no silent skip anymore).
+
+3. **Test `scheduled` locally** — Run dev with scheduled testing and hit the test route (default dev URL/port may vary; see [Wrangler dev / scheduled testing](https://developers.cloudflare.com/workers/runtime-apis/handlers/scheduled/)):
+
+   ```bash
+   npx wrangler dev --test-scheduled
+   ```
+
+   Then trigger the handler, for example:
+
+   ```bash
+   curl "http://localhost:8787/__scheduled?cron=0+*+*+*+*"
+   ```
+
+4. **D1 row count** — Verify the database bound in `wrangler.toml`:
+
+   ```bash
+   npx wrangler d1 execute phishnstatsdb --remote --command "SELECT COUNT(*) AS c FROM phishing_links"
+   ```
+
+   (`--remote` targets the deployed D1; omit or use `--local` for local dev databases.)
+
+---
+
 ## Matt — ingest transform + map JSON + HTTP behavior
 
 **You own:**
