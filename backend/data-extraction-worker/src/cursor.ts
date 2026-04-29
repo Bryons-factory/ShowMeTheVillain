@@ -1,4 +1,4 @@
-import { GET_OLDEST_DATE_SQL } from "./queries";
+import { GET_NEWEST_DATE_SQL } from "./queries";
 import type { PhishStatsRecord } from "./transform";
 
 /** UTC format aligned with legacy Python phishstats2cloud.format_phishstats_date */
@@ -19,7 +19,7 @@ export function parsePhishstatsDate(dateStr: string): Date {
   return new Date(normalized);
 }
 
-export function getOldestDate(records: PhishStatsRecord[]): Date | null {
+export function getNewestDate(records: PhishStatsRecord[]): Date | null {
   const dates: Date[] = [];
   for (const record of records) {
     const raw = record["date"];
@@ -32,19 +32,19 @@ export function getOldestDate(records: PhishStatsRecord[]): Date | null {
     }
   }
   if (dates.length === 0) return null;
-  return new Date(Math.min(...dates.map((d) => d.getTime())));
+  return new Date(Math.max(...dates.map((d) => d.getTime())));
 }
 
-/** Resume cursor from DB: oldest stored date minus overlap (Ethan). */
+/** Resume cursor from DB: newest stored date minus overlap (tail ingest). */
 export async function getCurrentCursor(
   db: D1Database,
   overlapMinutes: number
 ): Promise<string | null> {
   const row = await db
-    .prepare(GET_OLDEST_DATE_SQL)
-    .first<{ oldest_date: string | null }>();
-  if (!row?.oldest_date) return null;
-  const oldestDt = parsePhishstatsDate(row.oldest_date);
-  const nextMs = oldestDt.getTime() - overlapMinutes * 60 * 1000;
+    .prepare(GET_NEWEST_DATE_SQL)
+    .first<{ newest_date: string | null }>();
+  if (!row?.newest_date) return null;
+  const newestDt = parsePhishstatsDate(row.newest_date);
+  const nextMs = newestDt.getTime() - overlapMinutes * 60 * 1000;
   return formatPhishstatsDate(new Date(nextMs));
 }

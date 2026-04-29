@@ -7,9 +7,9 @@ PHISHSTATS_BATCH_SIZE = "20"
 PHISHSTATS_OVERLAP_MINUTES = "90"
 PHISHSTATS_MAX_BATCHES_PER_RUN = "10"
 
-# Trigger the worker at the top of every hour
+# Trigger the worker every 36 minutes
 [triggers]
-crons = ["0 * * * *"]
+crons = ["*/36 * * * *"]
 
 # Bind the D1 Database
 [[d1_databases]]

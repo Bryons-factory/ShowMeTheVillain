@@ -96,11 +96,11 @@ ON CONFLICT(id) DO UPDATE SET
     ssl_fingerprint = excluded.ssl_fingerprint
 `.trim();
 
-export const GET_OLDEST_DATE_SQL =
-  "SELECT MIN(date) AS oldest_date FROM phishing_links";
+export const GET_NEWEST_DATE_SQL =
+  "SELECT MAX(date) AS newest_date FROM phishing_links";
 
 /** Latest rows with coordinates for the map API (Tom: keep columns in sync with schema.sql). */
-export const MAP_POINTS_SELECT_SQL = `
+const MAP_POINTS_SELECT_BASE_SQL = `
 SELECT
     latitude,
     longitude,
@@ -116,5 +116,30 @@ FROM phishing_links
 WHERE latitude IS NOT NULL
   AND longitude IS NOT NULL
 ORDER BY date DESC
+`.trim();
+
+/** Latest rows with optional limit for map API. */
+export const MAP_POINTS_SELECT_SQL = `
+${MAP_POINTS_SELECT_BASE_SQL}
+LIMIT ?
+`.trim();
+
+/** Full table scan for map API (no LIMIT). */
+export const MAP_POINTS_SELECT_ALL_SQL = `
+${MAP_POINTS_SELECT_BASE_SQL}
+`.trim();
+
+/** Bounded read from pre-aggregated grid (see schema-map-grid-cells.sql). */
+export const MAP_GRID_CELLS_SELECT_SQL = `
+SELECT
+    lat_bucket,
+    lon_bucket,
+    point_count,
+    centroid_lat,
+    centroid_lon,
+    max_date,
+    avg_score
+FROM map_grid_cells
+ORDER BY point_count DESC
 LIMIT ?
 `.trim();

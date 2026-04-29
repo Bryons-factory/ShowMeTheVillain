@@ -108,3 +108,34 @@ export function rowToMapPoint(row: Record<string, unknown>): MapPointRow | null 
     isp: str(row.isp),
   };
 }
+
+/** map_grid_cells row → same JSON shape as rowToMapPoint (aggregated cell). */
+export function gridCellToMapPoint(row: Record<string, unknown>): MapPointRow | null {
+  const lat = num(row.centroid_lat);
+  const lon = num(row.centroid_lon);
+  if (lat === null || lon === null) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+
+  const count = num(row.point_count);
+  const pc = count !== null && count >= 1 ? Math.floor(count) : 1;
+  const z = Math.log10(pc + 1);
+  const intensity = Math.min(10, Math.max(1, Math.round(z * 3.33)));
+
+  const avgScore = num(row.avg_score);
+  const maxDate = str(row.max_date);
+  const name =
+    maxDate !== null
+      ? `${pc} incidents (latest ${maxDate})`
+      : `${pc} incidents (grid cell)`;
+
+  return {
+    lat,
+    lon,
+    intensity,
+    name,
+    threat_level: scoreToThreatLevel(avgScore),
+    company: null,
+    country: null,
+    isp: null,
+  };
+}
