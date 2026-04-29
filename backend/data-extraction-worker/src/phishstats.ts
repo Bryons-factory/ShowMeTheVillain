@@ -22,11 +22,11 @@ export async function fetchBatch(
   cursor: string | null
 ): Promise<PhishStatsRecord[]> {
   const params = new URLSearchParams({
-    _sort: "-date",
+    _sort: "date",
     _size: String(batchSize),
   });
   if (cursor) {
-    params.set("_where", `(date,lt,${cursor})`);
+    params.set("_where", `(date,gt,${cursor})`);
   }
 
   const url = `${PHISHSTATS_API_URL}?${params.toString()}`;

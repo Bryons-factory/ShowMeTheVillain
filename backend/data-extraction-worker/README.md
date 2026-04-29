@@ -14,8 +14,8 @@ This replaces the former Python scripts `backend/database2.py` and `backend/serv
 | **Schedule** | Top of every hour (`0 * * * *` in `wrangler.toml`) |
 | **Ingest source** | `https://api.phishstats.info/api/phishing` |
 | **Sink** | D1 binding `env.DB`, table `phishing_links` |
-| **Map HTTP** | `GET https://<worker>/` (optional `?limit=`, default 800, max 2000) → JSON array of map points |
-| **Ingest semantics** | Cursor from `date`, overlap window, bounded batches per run |
+| **Map HTTP** | `GET https://<worker>/` → JSON array of map points (raw rows or aggregated grid; see Map HTTP API) |
+| **Ingest semantics** | Tail cursor from newest ingested `date` (minus overlap), bounded batches per run |
 
 ### Hosted frontend (Cloudflare Pages)
 
@@ -41,12 +41,14 @@ GitHub Actions deploys this Worker, then runs [`frontend/scripts/patch_pages_met
 | Method | Path | Response |
 |--------|------|----------|
 | `GET` | `/` | `200`, `Content-Type: application/json`, body = `[{ lat, lon, intensity, name, threat_level, company, country, isp }, ...]` |
-| `GET` | `/?limit=N` | Same; `N` capped at 2000 (default 800) |
+| `GET` | `/?limit=N` | Raw `phishing_links` rows (newest first), capped at `N` (invalid/missing `limit` falls back to 800) |
+| `GET` | `/?limit=all` | Raw rows: full result set (heavy on D1 reads; avoid for public traffic) |
+| `GET` | `/?mode=grid&limit=N` | **Bounded read** from `map_grid_cells` (default `N` = 5000 if omitted; max 50000). Populate table via SQL refresh; see [`schema-map-grid-cells.sql`](./schema-map-grid-cells.sql). |
 | `OPTIONS` | `*` | CORS preflight |
 
 **CORS:** `Access-Control-Allow-Origin: *` (tighten for production if needed).
 
-**Row mapping:** See [`src/map-points.ts`](./src/map-points.ts). `threat_level` and `intensity` are derived from PhishStats **`score`** (D1 has no separate threat column).
+**Row mapping:** See [`src/map-points.ts`](./src/map-points.ts). Raw points: `threat_level` / `intensity` from **`score`**. Grid cells: `gridCellToMapPoint` (intensity from `point_count`, threat from `avg_score`).
 
 ---
 
@@ -59,7 +61,7 @@ GitHub Actions deploys this Worker, then runs [`frontend/scripts/patch_pages_met
 | File | Your responsibility |
 |------|---------------------|
 | [`schema.sql`](./schema.sql) | Canonical **`CREATE TABLE`** for `phishing_links`. Keep aligned with production D1. |
-| [`src/queries.ts`](./src/queries.ts) | **`UPSERT_SQL`**, **`GET_OLDEST_DATE_SQL`**, **`MAP_POINTS_SELECT_SQL`**: columns must match **`schema.sql`** and ingest bind order. |
+| [`src/queries.ts`](./src/queries.ts) | **`UPSERT_SQL`**, **`GET_NEWEST_DATE_SQL`**, **`MAP_POINTS_SELECT_SQL`**: columns must match **`schema.sql`** and ingest bind order. |
 
 ### Applying schema
 
@@ -87,7 +89,7 @@ Use the `database_name` from [`wrangler.toml`](./wrangler.toml).
 |------|---------------------|
 | [`src/config.ts`](./src/config.ts) | **`PHISHSTATS_*`** env defaults. |
 | [`src/phishstats.ts`](./src/phishstats.ts) | **`fetchBatch`**. |
-| [`src/cursor.ts`](./src/cursor.ts) | **`getCurrentCursor`**, **`getOldestDate`**, date helpers. |
+| [`src/cursor.ts`](./src/cursor.ts) | **`getCurrentCursor`**, **`getNewestDate`**, date helpers. |
 | [`src/index.ts`](./src/index.ts) | **`scheduled`** handler: orchestration and logging. |
 
 ### Tunables (`wrangler.toml` `[vars]`)

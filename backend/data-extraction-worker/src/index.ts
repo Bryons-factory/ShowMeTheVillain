@@ -2,18 +2,28 @@ import { getIngestConfig } from "./config";
 import {
   formatPhishstatsDate,
   getCurrentCursor,
-  getOldestDate,
+  getNewestDate,
 } from "./cursor";
 import type { Env } from "./env";
 import { fetchBatch } from "./phishstats";
-import { MAP_POINTS_SELECT_SQL, UPSERT_SQL } from "./queries";
-import { rowToMapPoint, filterMapPoints } from "./map-points";
+import {
+  MAP_GRID_CELLS_SELECT_SQL,
+  MAP_POINTS_SELECT_ALL_SQL,
+  MAP_POINTS_SELECT_SQL,
+  UPSERT_SQL,
+} from "./queries";
+import {
+  gridCellToMapPoint,
+  rowToMapPoint,
+  filterMapPoints,
+} from "./map-points";
 import { buildParams } from "./transform";
 
 export type { Env };
 
 const DEFAULT_MAP_LIMIT = 800;
-const MAX_MAP_LIMIT = 2000;
+const DEFAULT_GRID_LIMIT = 5000;
+const MAX_GRID_LIMIT = 50_000;
 
 const CORS_JSON_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
@@ -27,23 +37,28 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function parseMapLimit(url: URL): number {
+function parseMapLimit(url: URL): number | null {
   const raw = url.searchParams.get("limit");
-  if (!raw) return DEFAULT_MAP_LIMIT;
+  if (!raw) return null;
+  if (raw.toLowerCase() === "all") return null;
   const n = parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 1) return DEFAULT_MAP_LIMIT;
-  return Math.min(n, MAX_MAP_LIMIT);
+  return n;
+}
+
+function parseGridLimit(url: URL): number {
+  const raw = url.searchParams.get("limit");
+  if (!raw) return DEFAULT_GRID_LIMIT;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_GRID_LIMIT;
+  return Math.min(n, MAX_GRID_LIMIT);
 }
 
 async function runOnce(
   env: Env,
   cursor: string | null,
-  batchSize: number,
-  overlapMinutes: number
+  batchSize: number
 ): Promise<{ nextCursor: string | null; count: number }> {
-  console.log(
-    `phishstats-ingest: runOnce cursor=${cursor ?? "null"} batchSize=${String(batchSize)}`
-  );
   const records = await fetchBatch(batchSize, cursor);
 
   if (records.length === 0) {
@@ -57,20 +72,14 @@ async function runOnce(
   });
   await env.DB.batch(statements);
 
-  const firstId = records[0]?.["id"];
-  console.log(
-    `phishstats-ingest: D1 batch ok (${String(records.length)} statements), first_id=${String(firstId ?? "n/a")}`
-  );
-
-  const oldest = getOldestDate(records);
-  if (!oldest) {
+  const newest = getNewestDate(records);
+  if (!newest) {
     return { nextCursor: cursor, count: records.length };
   }
 
-  const nextCursorDt = new Date(
-    oldest.getTime() - overlapMinutes * 60 * 1000
-  );
-  const nextCursor = formatPhishstatsDate(nextCursorDt);
+  // Keep overlap at DB bootstrap only; during a run we must advance forward,
+  // otherwise each batch can keep re-reading the same overlap window.
+  const nextCursor = formatPhishstatsDate(newest);
 
   return { nextCursor, count: records.length };
 }
@@ -94,6 +103,7 @@ export default {
 
     const url = new URL(request.url);
     const limit = parseMapLimit(url);
+    const mapMode = (url.searchParams.get("mode") ?? "").toLowerCase();
 
     const filters = {
       threat_level: url.searchParams.get("threat_level") ?? undefined,
@@ -108,9 +118,24 @@ export default {
     };
 
     try {
-      const { results } = await env.DB.prepare(MAP_POINTS_SELECT_SQL)
-        .bind(limit)
-        .all<Record<string, unknown>>();
+      if (mapMode === "grid") {
+        const gridLimit = parseGridLimit(url);
+        const { results } = await env.DB
+          .prepare(MAP_GRID_CELLS_SELECT_SQL)
+          .bind(gridLimit)
+          .all<Record<string, unknown>>();
+        let rows = (results ?? [])
+          .map((r) => gridCellToMapPoint(r))
+          .filter((p): p is NonNullable<typeof p> => p !== null);
+        rows = filterMapPoints(rows, filters);
+        return jsonResponse(rows);
+      }
+
+      const stmt =
+        limit === null
+          ? env.DB.prepare(MAP_POINTS_SELECT_ALL_SQL)
+          : env.DB.prepare(MAP_POINTS_SELECT_SQL).bind(limit);
+      const { results } = await stmt.all<Record<string, unknown>>();
       let rows = (results ?? [])
         .map((r) => rowToMapPoint(r))
         .filter((p): p is NonNullable<typeof p> => p !== null);
@@ -129,9 +154,6 @@ export default {
   ): Promise<void> {
     const cfg = getIngestConfig(env);
     let cursor = await getCurrentCursor(env.DB, cfg.overlapMinutes);
-    console.log(
-      `phishstats-ingest: start cursor=${cursor ?? "null"} batchSize=${String(cfg.batchSize)} overlapMinutes=${String(cfg.overlapMinutes)} maxBatchesPerRun=${String(cfg.maxBatchesPerRun)}`
-    );
     let totalUpserted = 0;
     let batches = 0;
 
@@ -140,8 +162,7 @@ export default {
         const { nextCursor, count } = await runOnce(
           env,
           cursor,
-          cfg.batchSize,
-          cfg.overlapMinutes
+          cfg.batchSize
         );
         batches += 1;
 

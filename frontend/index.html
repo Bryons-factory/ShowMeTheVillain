@@ -7,8 +7,10 @@
          GitHub Actions rewrites these for Cloudflare Pages after Worker deploy (see .github/workflows/deploy.yml).
          In production over HTTPS, api-base must be HTTPS (never http://127.0.0.1) to avoid mixed-content blocking. -->
     <meta name="api-base" content="http://127.0.0.1:8000">
-    <!-- data-source: "api" -> GET {api-base}/api/phishing/map-points ; "worker" -> GET {api-base}/ (Worker stub) -->
+    <!-- data-source: "api" -> GET {api-base}/api/phishing/map-points ; "worker" -> Worker root (see worker-map-query) -->
     <meta name="data-source" content="api">
+    <!-- worker-map-query: path+query for Worker map JSON. Default uses D1 grid (bounded reads). Raw points: content="/?limit=2000" or "/?limit=all" -->
+    <meta name="worker-map-query" content="/?mode=grid&amp;limit=5000">
     <title>ShowMeTheVillain Tracker</title>
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <style>
@@ -166,7 +168,9 @@
             function buildDataUrl() {
                 const base = getApiBase();
                 if (getDataSource() === 'worker') {
-                    return base;
+                    var q = metaContent('worker-map-query', '/?mode=grid&limit=5000');
+                    if (q.charAt(0) !== '/') q = '/' + q;
+                    return base + q;
                 }
                 return base + '/api/phishing/map-points?limit=800';
             }
