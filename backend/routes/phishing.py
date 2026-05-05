@@ -238,14 +238,14 @@ async def get_map_points(
     company: Optional[str] = Query(None),
     country: Optional[str] = Query(None),
     isp: Optional[str] = Query(None),
-    limit: int = Query(500, ge=1, le=1000),
+    limit: int = Query(3000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
 ):
     """
     Points for the ShowMeTheVillain Plotly map (densitymapbox).
 
     Example:
-        GET /api/phishing/map-points?limit=200
+        GET /api/phishing/map-points?limit=3000
 
         Response:
         [

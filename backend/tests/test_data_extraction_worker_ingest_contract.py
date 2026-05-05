@@ -82,7 +82,7 @@ def test_fetch_maps_db_errors_to_database_error_502():
 
 def test_map_limit_parsing_defaults_and_all_sentinel():
     content = _read(WORKER_SRC / "index.ts")
-    assert "const DEFAULT_MAP_LIMIT = 800;" in content
+    assert "const DEFAULT_MAP_LIMIT = 3000;" in content
     assert "if (!raw) return null;" in content
     assert 'if (raw.toLowerCase() === "all") return null;' in content
     assert "if (!Number.isFinite(n) || n < 1) return DEFAULT_MAP_LIMIT;" in content

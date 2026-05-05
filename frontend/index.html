@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- api-base: FastAPI origin (no trailing slash) OR Worker URL for data-source=worker.
          GitHub Actions rewrites these for Cloudflare Pages after Worker deploy (see .github/workflows/deploy.yml).
-         In production over HTTPS, api-base must be HTTPS (never http://127.0.0.1) to avoid mixed-content blocking. -->
-    <meta name="api-base" content="http://127.0.0.1:8000">
-    <!-- data-source: "api" -> GET {api-base}/api/phishing/map-points ; "worker" -> Worker root (see worker-map-query) -->
-    <meta name="data-source" content="api">
-    <!-- worker-map-query: path+query for Worker map JSON. Default uses D1 grid (bounded reads). Raw points: content="/?limit=2000" or "/?limit=all" -->
-    <meta name="worker-map-query" content="/?mode=grid&amp;limit=5000">
+         In production over HTTPS, api-base must be HTTPS (never http://127.0.0.1) to avoid mixed-content blocking.
+         Local FastAPI (no Worker): ?dataSource=api&apiBase=http%3A%2F%2F127.0.0.1%3A8000
+         GitHub Actions replaces api-base with your HTTPS data Worker before Pages deploy. -->
+    <meta name="api-base" content="http://127.0.0.1:8787">
+    <!-- data-source: "api" -> GET {api-base}/api/phishing/map-points ; "worker" -> Worker (D1 map JSON at /) -->
+    <meta name="data-source" content="worker">
+    <!-- worker-map-query: Worker path+query. Default reads D1 phishing_links. Use /?mode=grid&limit=5000 only after map_grid_cells is populated. -->
+    <meta name="worker-map-query" content="/?limit=3000">
     <title>ShowMeTheVillain Tracker</title>
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <style>
@@ -122,8 +124,8 @@
             <label for="filter-threat">Threat
                 <select id="filter-threat" aria-label="Filter by threat level"></select>
             </label>
-            <label for="filter-company">Target
-                <select id="filter-company" aria-label="Filter by target company"></select>
+            <label for="filter-company">Malicious actor
+                <select id="filter-company" aria-label="Filter by malicious actor"></select>
             </label>
             <label for="filter-country">Country
                 <select id="filter-country" aria-label="Filter by country"></select>
@@ -154,25 +156,54 @@
                 return (el && el.content && el.content.trim()) ? el.content.trim() : fallback;
             }
 
+            function urlSearchParams() {
+                try {
+                    return new URLSearchParams(window.location.search || '');
+                } catch (e) {
+                    return new URLSearchParams();
+                }
+            }
+
             function getApiBase() {
+                var qp = urlSearchParams();
+                var fromQuery = qp.get('apiBase') || qp.get('api-base');
+                if (fromQuery && String(fromQuery).trim()) {
+                    return String(fromQuery).trim().replace(/\/$/, '');
+                }
                 if (typeof window.__API_BASE__ === 'string' && window.__API_BASE__.trim()) {
                     return window.__API_BASE__.trim().replace(/\/$/, '');
                 }
-                return metaContent('api-base', 'http://127.0.0.1:8000').replace(/\/$/, '');
+                return metaContent('api-base', 'http://127.0.0.1:8787').replace(/\/$/, '');
             }
 
             function getDataSource() {
-                return metaContent('data-source', 'api').toLowerCase();
+                var qp = urlSearchParams();
+                var fromQuery = qp.get('dataSource') || qp.get('data-source');
+                if (fromQuery && String(fromQuery).trim()) {
+                    return String(fromQuery).trim().toLowerCase();
+                }
+                return metaContent('data-source', 'worker').toLowerCase();
+            }
+
+            function getWorkerMapQuery() {
+                var qp = urlSearchParams();
+                var fromQuery = qp.get('mapQuery') || qp.get('worker-map-query');
+                if (fromQuery && String(fromQuery).trim()) {
+                    var q = String(fromQuery).trim();
+                    return q.charAt(0) === '/' ? q : '/' + q;
+                }
+                var qMeta = metaContent('worker-map-query', '/?limit=3000');
+                return qMeta;
             }
 
             function buildDataUrl() {
                 const base = getApiBase();
                 if (getDataSource() === 'worker') {
-                    var q = metaContent('worker-map-query', '/?mode=grid&limit=5000');
+                    var q = getWorkerMapQuery();
                     if (q.charAt(0) !== '/') q = '/' + q;
                     return base + q;
                 }
-                return base + '/api/phishing/map-points?limit=800';
+                return base + '/api/phishing/map-points?limit=3000';
             }
 
             function uniqSorted(values) {
@@ -208,7 +239,7 @@
 
             function buildFilterOptions(rows) {
                 fillSelect('filter-threat', uniqSorted(rows.map(function (r) { return r.threat_level; })), 'All levels');
-                fillSelect('filter-company', uniqSorted(rows.map(displayCompany)), 'All targets');
+                fillSelect('filter-company', uniqSorted(rows.map(displayCompany)), 'All malicious actors');
                 fillSelect('filter-country', uniqSorted(rows.map(displayCountry)), 'All countries');
                 fillSelect('filter-isp', uniqSorted(rows.map(displayIsp)), 'All ISPs');
             }
@@ -320,10 +351,10 @@
             var dataUrl = buildDataUrl();
             if (/\.pages\.dev$/i.test(window.location.hostname)) {
                 var _b = getApiBase();
-                if (/^http:\/\/(127\.0\.0\.1|localhost)\b/i.test(_b) && getDataSource() === 'api') {
+                if (/^http:\/\/(127\.0\.0\.1|localhost)\b/i.test(_b)) {
                     statusEl.classList.add('error');
                     statusEl.textContent =
-                        'Pages build still targets localhost. Deploy with GitHub Actions (patches Worker URL) or set meta api-base to your HTTPS Worker URL and data-source to worker.';
+                        'Pages is still using a localhost api-base (mixed content or unreachable). Deploy via GitHub Actions so api-base is patched to your HTTPS Worker, or set apiBase query param / meta to that URL.';
                     return;
                 }
             }

@@ -41,7 +41,7 @@ GitHub Actions deploys this Worker, then runs [`frontend/scripts/patch_pages_met
 | Method | Path | Response |
 |--------|------|----------|
 | `GET` | `/` | `200`, `Content-Type: application/json`, body = `[{ lat, lon, intensity, name, threat_level, company, country, isp }, ...]` |
-| `GET` | `/?limit=N` | Raw `phishing_links` rows (newest first), capped at `N` (invalid/missing `limit` falls back to 800) |
+| `GET` | `/?limit=N` | Raw `phishing_links` rows (newest first), capped at `N` (invalid/missing `limit` falls back to 3000) |
 | `GET` | `/?limit=all` | Raw rows: full result set (heavy on D1 reads; avoid for public traffic) |
 | `GET` | `/?mode=grid&limit=N` | **Bounded read** from `map_grid_cells` (default `N` = 5000 if omitted; max 50000). Populate table via SQL refresh; see [`schema-map-grid-cells.sql`](./schema-map-grid-cells.sql). |
 | `OPTIONS` | `*` | CORS preflight |

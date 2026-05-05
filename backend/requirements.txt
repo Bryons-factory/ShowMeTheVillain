@@ -32,4 +32,3 @@ mypy==1.7.1
 
 # Production Deployment (optional)
 gunicorn==21.2.0
-cloudflare==1.14.0
