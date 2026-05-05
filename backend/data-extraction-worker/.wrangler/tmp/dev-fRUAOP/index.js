@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-dYTcAQ/checked-fetch.js
+// .wrangler/tmp/bundle-E9D82L/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -437,7 +437,7 @@ function buildParams(record) {
 __name(buildParams, "buildParams");
 
 // src/index.ts
-var DEFAULT_MAP_LIMIT = 800;
+var DEFAULT_MAP_LIMIT = 3e3;
 var DEFAULT_GRID_LIMIT = 5e3;
 var MAX_GRID_LIMIT = 5e4;
 var CORS_JSON_HEADERS = {
@@ -583,50 +583,9 @@ var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "drainBody");
 var middleware_ensure_req_body_drained_default = drainBody;
 
-// ../../../../../../AppData/Roaming/npm/node_modules/wrangler/templates/middleware/middleware-scheduled.ts
-var scheduled = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
-  const url = new URL(request.url);
-  if (url.pathname === "/__scheduled") {
-    const cron = url.searchParams.get("cron") ?? "";
-    await middlewareCtx.dispatch("scheduled", { cron });
-    return new Response("Ran scheduled event");
-  }
-  const resp = await middlewareCtx.next(request, env);
-  if (request.headers.get("referer")?.endsWith("/__scheduled") && url.pathname === "/favicon.ico" && resp.status === 500) {
-    return new Response(null, { status: 404 });
-  }
-  return resp;
-}, "scheduled");
-var middleware_scheduled_default = scheduled;
-
-// ../../../../../../AppData/Roaming/npm/node_modules/wrangler/templates/middleware/middleware-miniflare3-json-error.ts
-function reduceError(e) {
-  return {
-    name: e?.name,
-    message: e?.message ?? String(e),
-    stack: e?.stack,
-    cause: e?.cause === void 0 ? void 0 : reduceError(e.cause)
-  };
-}
-__name(reduceError, "reduceError");
-var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
-  try {
-    return await middlewareCtx.next(request, env);
-  } catch (e) {
-    const error = reduceError(e);
-    return Response.json(error, {
-      status: 500,
-      headers: { "MF-Experimental-Error-Stack": "true" }
-    });
-  }
-}, "jsonError");
-var middleware_miniflare3_json_error_default = jsonError;
-
-// .wrangler/tmp/bundle-dYTcAQ/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-E9D82L/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
-  middleware_ensure_req_body_drained_default,
-  middleware_scheduled_default,
-  middleware_miniflare3_json_error_default
+  middleware_ensure_req_body_drained_default
 ];
 var middleware_insertion_facade_default = src_default;
 
@@ -655,7 +614,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-dYTcAQ/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-E9D82L/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

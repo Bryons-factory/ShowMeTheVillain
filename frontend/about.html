@@ -37,10 +37,32 @@
             outline: 2px solid #5c9ce6;
             outline-offset: 2px;
         }
+        .about-institution {
+            margin: 0 0 24px;
+            text-align: center;
+        }
+        .uwgb-logo {
+            display: block;
+            width: min(100%, 320px);
+            height: auto;
+            margin: 0 auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+        }
+        .assignment-lede {
+            margin: 20px 0 0;
+            padding: 16px 18px;
+            background: rgba(15, 60, 45, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            color: #e8eaed;
+            font-size: 0.98rem;
+        }
+        .assignment-lede strong { color: #fff; }
         h1 {
             font-size: 1.65rem;
             font-weight: 700;
-            margin: 0 0 10px;
+            margin: 28px 0 10px;
             letter-spacing: -0.02em;
         }
         .lede {
@@ -61,6 +83,13 @@
         li { margin-bottom: 6px; }
         a { color: #8ab4f8; }
         a:hover { color: #adc6ff; }
+        code {
+            font-size: 0.9em;
+            background: #2d3139;
+            padding: 0.12em 0.35em;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
     </style>
 </head>
 <body>
@@ -69,34 +98,83 @@
             <a class="back-link" href="index.html">Back to map</a>
         </nav>
 
-        <h1>ShowMeTheVillain</h1>
-        <p class="lede">Course context and what this application does.</p>
+        <header class="about-institution">
+            <img
+                class="uwgb-logo"
+                src="assets/uwgb-logo.png"
+                alt="University of Wisconsin–Green Bay — official logo"
+            >
+            <p class="assignment-lede">
+                <strong>Course assignment.</strong>
+                This application is work for the <strong>capstone Software Engineering</strong> course in the
+                <strong>Computer Science</strong> program at the <strong>University of Wisconsin–Green Bay</strong>.
+                It is submitted in partial fulfillment of that course’s project requirements, under the guidance of
+                <strong>Dr.&nbsp;Ahsan</strong> (advisor).
+            </p>
+        </header>
 
-        <h2>Course</h2>
+        <h2>About the course</h2>
         <p>
-            This page is for your course write-up. Replace this section with your real details:
-            course title, term, institution, learning objectives, and how this project fits the syllabus.
+            The Software Engineering capstone is a team-based experience focused on the full lifecycle of a real software
+            product: scoping and proposal, architecture and technology choices, implementation, quality practices, and
+            deployment—much like you would see on a small professional project. Students coordinate roles, integrate
+            components (here, a data pipeline, APIs, hosting, and a map UI), and document assumptions, risks, and outcomes.
         </p>
+        <p>
+            Our team’s project is known in documentation as <strong>Phish&nbsp;N’&nbsp;Heat</strong>; this site,
+            <strong>ShowMeTheVillain</strong>, is the interactive map and public-facing piece of that work.
+        </p>
+
+        <h1>ShowMeTheVillain</h1>
+        <p class="lede">
+            Global phishing threat map — visualize reported phishing-related activity by geography, with filters for threat
+            level, target, country, and ISP.
+        </p>
+
+        <h2>Team</h2>
         <ul>
-            <li>What skills or outcomes does the assignment emphasize?</li>
-            <li>Team roles or individual contribution (if applicable).</li>
+            <li>Bryon Cobb — GitHub repo management, hosting, software architecture</li>
+            <li>Thomas Lovesee — Python backend, database management, SQL and queries</li>
+            <li>Ethan Christman — API handling and parsing, data types for the database</li>
+            <li>Matthew Kabat — networking assistance, front-end integration</li>
         </ul>
 
-        <h2>Project</h2>
+        <h2>What this project is</h2>
         <p>
-            <strong>ShowMeTheVillain</strong> is a global phishing threat tracker: a Plotly density map with a top
-            filter bar (threat level, target company, country, ISP). The UI loads a batch of map points once,
-            then filters in the browser.
+            We are building an interactive view of phishing activity so you can see <strong>where reported threats cluster</strong>
+            and how intense they are. The original proposal framed this as a heat map of <strong>digital attackers by geography</strong>
+            over a multi-year window, combining <strong>threat level</strong> and context (target brand, country, ISP) with a
+            readable map for <strong>analysts, data brokers, and reporters</strong> who need a quick sense of problematic regions.
         </p>
         <p>
-            Data can come from the <strong>FastAPI</strong> backend (PhishStats pipeline with caching) or, for
-            static hosting, from a <strong>Cloudflare Worker</strong> backed by <strong>D1</strong>, depending on
-            how <code>api-base</code> and <code>data-source</code> are configured in the map page meta tags.
+            This site is the <strong>map experience</strong>: a density map with filters for threat level, target company, country,
+            and ISP. Points load once, then filters apply in the browser so you can explore without hammering upstream services.
+        </p>
+
+        <h2>How it works</h2>
+        <p>
+            Incident data ultimately traces to <strong>PhishStats</strong> (public phishing telemetry). Depending on deployment,
+            the map page reads JSON from either the <strong>FastAPI</strong> backend (cached PhishStats pipeline) or a
+            <strong>Cloudflare Worker</strong> backed by <strong>D1</strong> when the app is hosted on Pages — controlled by the
+            <code>api-base</code> and <code>data-source</code> meta tags on <code>index.html</code>.
         </p>
         <p>
-            Repository and architecture notes live in the project README; use this page to explain your specific
-            course deliverables, design choices, and how to run the stack locally.
+            The visible map is built with <strong>Plotly</strong> (<code>densitymapbox</code>) for a lightweight, static-friendly
+            front end; the course write-up also described a React-based UI path for richer dashboards. Same mission: make harmful
+            links and their geography easier to reason about.
         </p>
+
+        <h2>Constraints we planned for</h2>
+        <ul>
+            <li><strong>API rate limits</strong> — PhishStats free tier is generous but capped (on the order of calls per minute), so caching, batching, and bounded queries matter.</li>
+            <li><strong>Hosting</strong> — Cloudflare Workers, D1, and Pages were new to much of the team; we validated that the stack could serve interactive reads reliably.</li>
+        </ul>
+
+        <h2>References</h2>
+        <ul>
+            <li><a href="https://phishstats.info/api-docs" rel="noopener noreferrer">PhishStats API documentation</a></li>
+            <li><a href="https://developers.cloudflare.com/d1/" rel="noopener noreferrer">Cloudflare D1</a></li>
+        </ul>
     </div>
 </body>
 </html>

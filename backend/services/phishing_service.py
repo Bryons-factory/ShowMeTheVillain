@@ -300,7 +300,7 @@ class PhishingService:
         company: Optional[str] = None,
         country: Optional[str] = None,
         isp: Optional[str] = None,
-        limit: int = 500,
+        limit: int = 3000,
         offset: int = 0,
     ) -> List[MapPoint]:
         """

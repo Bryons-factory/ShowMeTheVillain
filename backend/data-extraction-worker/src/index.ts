@@ -21,7 +21,7 @@ import { buildParams } from "./transform";
 
 export type { Env };
 
-const DEFAULT_MAP_LIMIT = 800;
+const DEFAULT_MAP_LIMIT = 3000;
 const DEFAULT_GRID_LIMIT = 5000;
 const MAX_GRID_LIMIT = 50_000;
 
