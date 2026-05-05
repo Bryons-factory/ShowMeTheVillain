@@ -16,6 +16,43 @@ def test_ingest_cursor_sql_uses_newest_date():
     assert "GET_OLDEST_DATE_SQL" not in content
 
 
+def test_isp_stats_sql_matches_phishing_links_schema():
+    content = _read(WORKER_SRC / "queries.ts")
+    assert "ISP_STATS_BY_ISP_SQL" in content
+    assert "FROM phishing_links" in content
+    assert "GROUP BY isp" in content
+    assert "incident_count" in content
+    assert "avg_score" in content
+    assert "max_score" in content
+
+
+def test_victim_list_route_queries_d1_before_map_root():
+    content = _read(WORKER_SRC / "index.ts")
+    assert 'path === "/victim-list"' in content
+    assert ".prepare(ISP_STATS_BY_ISP_SQL)" in content
+    assert 'console.error("victim-list: D1 query failed", e);' in content
+    assert 'if (path !== "/")' in content
+    assert 'return jsonResponse({ error: "not_found" }, 404);' in content
+
+
+def test_retention_purge_sql_and_scheduled_hook():
+    content = _read(WORKER_SRC / "queries.ts")
+    assert "DELETE_PHISHING_OLDER_THAN_SQL" in content
+    assert "DELETE FROM phishing_links" in content
+    assert "date < ?" in content
+    content_idx = _read(WORKER_SRC / "index.ts")
+    assert "getPurgeConfig" in content_idx
+    assert "purgeOlderThan" in content_idx
+    assert "phishstats-retention:" in content_idx
+
+
+def test_purge_config_parses_env():
+    content = _read(WORKER_SRC / "config.ts")
+    assert "getPurgeConfig" in content
+    assert "RETENTION_DAYS" in content
+    assert "PURGE_BATCH_SIZE" in content
+
+
 def test_phishstats_fetch_uses_forward_tail_filter():
     content = _read(WORKER_SRC / "phishstats.ts")
     assert '_sort: "date"' in content

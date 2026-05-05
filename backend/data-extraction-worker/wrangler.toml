@@ -6,6 +6,10 @@ compatibility_date = "2024-03-31"
 PHISHSTATS_BATCH_SIZE = "20"
 PHISHSTATS_OVERLAP_MINUTES = "90"
 PHISHSTATS_MAX_BATCHES_PER_RUN = "10"
+# After ingest: delete rows older than this many days (UTC). Set "0" to disable.
+RETENTION_DAYS = "730"
+PURGE_BATCH_SIZE = "5000"
+PURGE_MAX_ROUNDS = "20"
 
 # Trigger the worker every 36 minutes
 [triggers]

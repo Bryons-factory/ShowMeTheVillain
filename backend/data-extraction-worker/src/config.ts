@@ -22,3 +22,21 @@ export function getIngestConfig(env: Env): IngestConfig {
     maxBatchesPerRun: parsePositiveInt(env.PHISHSTATS_MAX_BATCHES_PER_RUN, 10),
   };
 }
+
+export interface PurgeConfig {
+  /** 0 = disabled */
+  retentionDays: number;
+  batchSize: number;
+  maxRounds: number;
+}
+
+export function getPurgeConfig(env: Env): PurgeConfig {
+  const rawDays = parseInt(env.RETENTION_DAYS ?? "730", 10);
+  const retentionDays =
+    Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 0;
+  return {
+    retentionDays,
+    batchSize: parsePositiveInt(env.PURGE_BATCH_SIZE, 5000),
+    maxRounds: parsePositiveInt(env.PURGE_MAX_ROUNDS, 20),
+  };
+}
