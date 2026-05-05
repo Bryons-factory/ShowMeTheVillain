@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Same Worker origin as the map (GitHub Actions patches api-base for Pages). -->
+    <meta name="api-base" content="http://127.0.0.1:8787">
+    <meta name="data-source" content="worker">
+    <title>Victim list — ShowMeTheVillain</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; font-family: system-ui, Segoe UI, Arial, sans-serif; }
+        body {
+            background: #1a1d23;
+            color: #e8eaed;
+            line-height: 1.55;
+        }
+        .wrap {
+            max-width: 52rem;
+            margin: 0 auto;
+            padding: 28px 18px 48px;
+        }
+        .nav-top {
+            margin-bottom: 22px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            padding: 7px 14px;
+            border-radius: 6px;
+            border: 1px solid #5c9ce6;
+            background: #2d3139;
+            color: #e8eaed;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .back-link:hover { background: #3c4250; color: #fff; }
+        .back-link:focus {
+            outline: 2px solid #5c9ce6;
+            outline-offset: 2px;
+        }
+        h1 {
+            font-size: 1.65rem;
+            font-weight: 700;
+            margin: 0 0 10px;
+            letter-spacing: -0.02em;
+        }
+        .lede {
+            color: #9aa0a6;
+            font-size: 0.95rem;
+            margin: 0 0 20px;
+        }
+        #status {
+            font-size: 14px;
+            margin: 0 0 16px;
+            color: #bdc1c6;
+        }
+        #status.error { color: #f28b82; }
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #22262c;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th, td {
+            text-align: left;
+            padding: 10px 14px;
+            border-bottom: 1px solid #333;
+        }
+        th {
+            background: #252a33;
+            color: #9aa0a6;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:hover td { background: rgba(255, 255, 255, 0.04); }
+        .num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .isp-cell { max-width: 22rem; word-break: break-word; }
+        a { color: #8ab4f8; }
+        a:hover { color: #adc6ff; }
+        code {
+            font-size: 0.9em;
+            background: #2d3139;
+            padding: 0.12em 0.35em;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <nav class="nav-top" aria-label="Primary">
+            <a class="back-link" href="index.html">Back to map</a>
+            <a class="back-link" href="about.html">About the project</a>
+        </nav>
+
+        <h1>Victim list</h1>
+        <p class="lede">
+            Networks (<strong>ISP</strong>) most frequently represented in phishing incidents stored in
+            <strong>D1</strong> (<code>phishing_links</code>): count of rows, average <code>score</code>, and max
+            <code>score</code> (same fields as the ingestion schema).
+        </p>
+
+        <div id="status" role="status">Loading…</div>
+
+        <div class="table-wrap" id="table-container" hidden>
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">ISP</th>
+                        <th scope="col" class="num">Incidents</th>
+                        <th scope="col" class="num">Avg score</th>
+                        <th scope="col" class="num">Max score</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var statusEl = document.getElementById('status');
+            var tbody = document.getElementById('tbody');
+            var tableContainer = document.getElementById('table-container');
+
+            function metaContent(name, fallback) {
+                var el = document.querySelector('meta[name="' + name + '"]');
+                return (el && el.content && el.content.trim()) ? el.content.trim() : fallback;
+            }
+
+            function urlSearchParams() {
+                try {
+                    return new URLSearchParams(window.location.search || '');
+                } catch (e) {
+                    return new URLSearchParams();
+                }
+            }
+
+            function getApiBase() {
+                var qp = urlSearchParams();
+                var fromQuery = qp.get('apiBase') || qp.get('api-base');
+                if (fromQuery && String(fromQuery).trim()) {
+                    return String(fromQuery).trim().replace(/\/$/, '');
+                }
+                if (typeof window.__API_BASE__ === 'string' && window.__API_BASE__.trim()) {
+                    return window.__API_BASE__.trim().replace(/\/$/, '');
+                }
+                return metaContent('api-base', 'http://127.0.0.1:8787').replace(/\/$/, '');
+            }
+
+            function getDataSource() {
+                var qp = urlSearchParams();
+                var fromQuery = qp.get('dataSource') || qp.get('data-source');
+                if (fromQuery && String(fromQuery).trim()) {
+                    return String(fromQuery).trim().toLowerCase();
+                }
+                return metaContent('data-source', 'worker').toLowerCase();
+            }
+
+            function victimListUrl() {
+                if (getDataSource() !== 'worker') {
+                    return null;
+                }
+                var base = getApiBase();
+                var qp = urlSearchParams();
+                var lim = qp.get('limit');
+                if (!lim || !/^\d+$/.test(lim)) {
+                    lim = '20';
+                }
+                return base + '/victim-list?limit=' + encodeURIComponent(lim);
+            }
+
+            var dataUrl = victimListUrl();
+            if (!dataUrl) {
+                statusEl.classList.add('error');
+                statusEl.textContent =
+                    'Victim list needs D1 via the data extraction Worker. Set data-source to worker and api-base to your Worker URL (or use the same query overrides as the map page). FastAPI does not serve this table.';
+                return;
+            }
+
+            fetch(dataUrl)
+                .then(function (response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (!Array.isArray(data)) throw new Error('Expected JSON array');
+                    if (data.length === 0) {
+                        statusEl.textContent = 'No ISP rows returned (empty database or no isp values).';
+                        return;
+                    }
+                    statusEl.textContent = 'Top ' + data.length + ' ISP(s) by incident count (Worker → D1).';
+                    data.forEach(function (row) {
+                        var tr = document.createElement('tr');
+                        var isp = (row.isp != null) ? String(row.isp) : '';
+                        var ic = row.incident_count != null ? row.incident_count : '';
+                        var avg = row.avg_score != null ? row.avg_score : '';
+                        var mx = row.max_score != null ? row.max_score : '';
+                        tr.innerHTML =
+                            '<td class="isp-cell"></td>' +
+                            '<td class="num"></td><td class="num"></td><td class="num"></td>';
+                        tr.cells[0].textContent = isp;
+                        tr.cells[1].textContent = ic;
+                        tr.cells[2].textContent = avg;
+                        tr.cells[3].textContent = mx;
+                        tbody.appendChild(tr);
+                    });
+                    tableContainer.hidden = false;
+                })
+                .catch(function (err) {
+                    statusEl.classList.add('error');
+                    var msg = (err && err.message) ? err.message : 'Request failed';
+                    statusEl.textContent = 'Could not load victim list: ' + msg + '. Is the Worker running and api-base correct?';
+                    console.error('Victim list URL:', dataUrl, err);
+                });
+        })();
+    </script>
+</body>
+</html>

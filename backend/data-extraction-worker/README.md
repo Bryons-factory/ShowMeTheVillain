@@ -3,7 +3,8 @@
 Cloudflare Worker that:
 
 1. **Ingest (cron)** — Pulls phishing incidents from the **PhishStats** HTTP API and **upserts** into D1 table **`phishing_links`**.
-2. **Map API (`fetch`)** — **`GET /`** reads the latest rows from D1 and returns a **JSON array** in the shape expected by [`frontend/index.html`](../../frontend/index.html) (Plotly density map + filter bar).
+2. **Retention (same cron, after ingest)** — Deletes rows whose **`date`** is older than **`RETENTION_DAYS`** (UTC window), in batches, so the table stays bounded while new data keeps landing. Set **`RETENTION_DAYS=0`** to disable.
+3. **Map API (`fetch`)** — **`GET /`** reads the latest rows from D1 and returns a **JSON array** in the shape expected by [`frontend/index.html`](../../frontend/index.html) (Plotly density map + filter bar).
 
 This replaces the former Python scripts `backend/database2.py` and `backend/services/phishstats2cloud.py`.
 
@@ -34,6 +35,16 @@ GitHub Actions deploys this Worker, then runs [`frontend/scripts/patch_pages_met
 - **No `init_schema()` in the Worker.** Schema is applied out-of-band. The cron job assumes `phishing_links` already exists.
 - **No `sleep()` between batches.** One cron run executes up to **`PHISHSTATS_MAX_BATCHES_PER_RUN`** batches, then exits.
 
+### Retention env vars (`wrangler.toml` `[vars]`)
+
+| Variable | Default | Meaning |
+| -------- | ------- | ------- |
+| `RETENTION_DAYS` | `730` | Delete rows with `date` strictly older than this many days (rolling UTC cutoff). `0` disables purge. |
+| `PURGE_BATCH_SIZE` | `5000` | Rows per `DELETE ... LIMIT` batch (D1/CPU friendly). |
+| `PURGE_MAX_ROUNDS` | `20` | Max delete batches per cron (up to `batch × rounds` rows removed per run). |
+
+Cutoff uses the same ISO-style strings as ingest (`formatPhishstatsDate`). If you maintain **`map_grid_cells`**, refresh or prune that table separately so it stays consistent after large deletes.
+
 ---
 
 ## Map HTTP API
@@ -44,6 +55,7 @@ GitHub Actions deploys this Worker, then runs [`frontend/scripts/patch_pages_met
 | `GET` | `/?limit=N` | Raw `phishing_links` rows (newest first), capped at `N` (invalid/missing `limit` falls back to 3000) |
 | `GET` | `/?limit=all` | Raw rows: full result set (heavy on D1 reads; avoid for public traffic) |
 | `GET` | `/?mode=grid&limit=N` | **Bounded read** from `map_grid_cells` (default `N` = 5000 if omitted; max 50000). Populate table via SQL refresh; see [`schema-map-grid-cells.sql`](./schema-map-grid-cells.sql). |
+| `GET` | `/victim-list?limit=N` | JSON array: top ISPs by incident count from `phishing_links` (`isp`, `incident_count`, `avg_score`, `max_score`). Default `N` = 20; max 100. |
 | `OPTIONS` | `*` | CORS preflight |
 
 **CORS:** `Access-Control-Allow-Origin: *` (tighten for production if needed).

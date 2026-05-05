@@ -38,6 +38,7 @@ The application is a **global phishing threat map**: an interactive **Plotly** d
 - **Filters**: threat level, malicious actor, country, ISP (filtering is **client-side** after one batch load).
 - **Status line**: total points loaded vs. how many match the current filters.
 - **About** page: [`frontend/about.html`](frontend/about.html) — course context, team, architecture summary, references.
+- **Victim list** page: [`frontend/victims.html`](frontend/victims.html) — top ISPs by incident count from D1 (`GET /victim-list` on the data extraction Worker).
 
 Default map batch size: **3,000** points (`/?limit=3000` against D1 for the Worker path). Adjust via [`frontend/index.html`](frontend/index.html) meta `worker-map-query` or FastAPI query params if needed.
 

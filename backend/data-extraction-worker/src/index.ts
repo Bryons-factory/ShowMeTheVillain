@@ -1,4 +1,4 @@
-import { getIngestConfig } from "./config";
+import { getIngestConfig, getPurgeConfig } from "./config";
 import {
   formatPhishstatsDate,
   getCurrentCursor,
@@ -7,6 +7,8 @@ import {
 import type { Env } from "./env";
 import { fetchBatch } from "./phishstats";
 import {
+  DELETE_PHISHING_OLDER_THAN_SQL,
+  ISP_STATS_BY_ISP_SQL,
   MAP_GRID_CELLS_SELECT_SQL,
   MAP_POINTS_SELECT_ALL_SQL,
   MAP_POINTS_SELECT_SQL,
@@ -24,6 +26,8 @@ export type { Env };
 const DEFAULT_MAP_LIMIT = 3000;
 const DEFAULT_GRID_LIMIT = 5000;
 const MAX_GRID_LIMIT = 50_000;
+const DEFAULT_VICTIM_LIST_LIMIT = 20;
+const MAX_VICTIM_LIST_LIMIT = 100;
 
 const CORS_JSON_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
@@ -52,6 +56,20 @@ function parseGridLimit(url: URL): number {
   const n = parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 1) return DEFAULT_GRID_LIMIT;
   return Math.min(n, MAX_GRID_LIMIT);
+}
+
+function normalizePathname(pathname: string): string {
+  if (!pathname || pathname === "/") return "/";
+  const trimmed = pathname.replace(/\/+$/, "");
+  return trimmed === "" ? "/" : trimmed;
+}
+
+function parseVictimListLimit(url: URL): number {
+  const raw = url.searchParams.get("limit");
+  if (!raw) return DEFAULT_VICTIM_LIST_LIMIT;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_VICTIM_LIST_LIMIT;
+  return Math.min(n, MAX_VICTIM_LIST_LIMIT);
 }
 
 async function runOnce(
@@ -84,6 +102,33 @@ async function runOnce(
   return { nextCursor, count: records.length };
 }
 
+/** Cutoff ISO string: rows with date strictly older than this are purged. */
+function retentionCutoffIso(retentionDays: number): string {
+  const ms = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  return formatPhishstatsDate(new Date(ms));
+}
+
+async function purgeOlderThan(
+  env: Env,
+  cutoffIso: string,
+  batchSize: number,
+  maxRounds: number
+): Promise<number> {
+  let total = 0;
+  for (let round = 0; round < maxRounds; round++) {
+    const result = await env.DB
+      .prepare(DELETE_PHISHING_OLDER_THAN_SQL)
+      .bind(cutoffIso, batchSize)
+      .run();
+    const deleted = result.meta?.changes ?? 0;
+    if (deleted === 0) {
+      break;
+    }
+    total += deleted;
+  }
+  return total;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") {
@@ -102,6 +147,32 @@ export default {
     }
 
     const url = new URL(request.url);
+    const path = normalizePathname(url.pathname);
+
+    if (path === "/victim-list") {
+      try {
+        const lim = parseVictimListLimit(url);
+        const { results } = await env.DB
+          .prepare(ISP_STATS_BY_ISP_SQL)
+          .bind(lim)
+          .all<Record<string, unknown>>();
+        const rows = (results ?? []).map((r) => ({
+          isp: String(r.isp ?? ""),
+          incident_count: Number(r.incident_count ?? 0),
+          avg_score: Number(r.avg_score ?? 0),
+          max_score: Number(r.max_score ?? 0),
+        }));
+        return jsonResponse(rows);
+      } catch (e) {
+        console.error("victim-list: D1 query failed", e);
+        return jsonResponse({ error: "database_error" }, 502);
+      }
+    }
+
+    if (path !== "/") {
+      return jsonResponse({ error: "not_found" }, 404);
+    }
+
     const limit = parseMapLimit(url);
     const mapMode = (url.searchParams.get("mode") ?? "").toLowerCase();
 
@@ -184,6 +255,22 @@ export default {
       console.log(
         `phishstats-ingest: done, total rows this run: ${totalUpserted}, batches: ${batches}`
       );
+
+      const purgeCfg = getPurgeConfig(env);
+      if (purgeCfg.retentionDays > 0) {
+        const cutoff = retentionCutoffIso(purgeCfg.retentionDays);
+        const removed = await purgeOlderThan(
+          env,
+          cutoff,
+          purgeCfg.batchSize,
+          purgeCfg.maxRounds
+        );
+        console.log(
+          `phishstats-retention: removed ${removed} row(s) with date < ${cutoff} (retention ${purgeCfg.retentionDays}d, batch ${purgeCfg.batchSize})`
+        );
+      } else {
+        console.log("phishstats-retention: skipped (RETENTION_DAYS is 0)");
+      }
     } catch (e) {
       console.error("phishstats-ingest: fatal", e);
       throw e;

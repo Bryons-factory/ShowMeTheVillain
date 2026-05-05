@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-E9D82L/checked-fetch.js
+// .wrangler/tmp/bundle-E1EGT0/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -42,6 +42,16 @@ function getIngestConfig(env) {
   };
 }
 __name(getIngestConfig, "getIngestConfig");
+function getPurgeConfig(env) {
+  const rawDays = parseInt(env.RETENTION_DAYS ?? "730", 10);
+  const retentionDays = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 0;
+  return {
+    retentionDays,
+    batchSize: parsePositiveInt(env.PURGE_BATCH_SIZE, 5e3),
+    maxRounds: parsePositiveInt(env.PURGE_MAX_ROUNDS, 20)
+  };
+}
+__name(getPurgeConfig, "getPurgeConfig");
 
 // src/queries.ts
 var UPSERT_SQL = `
@@ -175,6 +185,25 @@ SELECT
     avg_score
 FROM map_grid_cells
 ORDER BY point_count DESC
+LIMIT ?
+`.trim();
+var ISP_STATS_BY_ISP_SQL = `
+SELECT
+    isp,
+    COUNT(*) AS incident_count,
+    ROUND(AVG(score), 2) AS avg_score,
+    ROUND(MAX(score), 2) AS max_score
+FROM phishing_links
+WHERE isp IS NOT NULL
+  AND TRIM(isp) <> ''
+GROUP BY isp
+ORDER BY incident_count DESC, avg_score DESC
+LIMIT ?
+`.trim();
+var DELETE_PHISHING_OLDER_THAN_SQL = `
+DELETE FROM phishing_links
+WHERE date IS NOT NULL
+  AND date < ?
 LIMIT ?
 `.trim();
 
@@ -440,6 +469,8 @@ __name(buildParams, "buildParams");
 var DEFAULT_MAP_LIMIT = 3e3;
 var DEFAULT_GRID_LIMIT = 5e3;
 var MAX_GRID_LIMIT = 5e4;
+var DEFAULT_VICTIM_LIST_LIMIT = 20;
+var MAX_VICTIM_LIST_LIMIT = 100;
 var CORS_JSON_HEADERS = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*"
@@ -468,6 +499,20 @@ function parseGridLimit(url) {
   return Math.min(n, MAX_GRID_LIMIT);
 }
 __name(parseGridLimit, "parseGridLimit");
+function normalizePathname(pathname) {
+  if (!pathname || pathname === "/") return "/";
+  const trimmed = pathname.replace(/\/+$/, "");
+  return trimmed === "" ? "/" : trimmed;
+}
+__name(normalizePathname, "normalizePathname");
+function parseVictimListLimit(url) {
+  const raw = url.searchParams.get("limit");
+  if (!raw) return DEFAULT_VICTIM_LIST_LIMIT;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_VICTIM_LIST_LIMIT;
+  return Math.min(n, MAX_VICTIM_LIST_LIMIT);
+}
+__name(parseVictimListLimit, "parseVictimListLimit");
 async function runOnce(env, cursor, batchSize) {
   const records = await fetchBatch(batchSize, cursor);
   if (records.length === 0) {
@@ -487,6 +532,24 @@ async function runOnce(env, cursor, batchSize) {
   return { nextCursor, count: records.length };
 }
 __name(runOnce, "runOnce");
+function retentionCutoffIso(retentionDays) {
+  const ms = Date.now() - retentionDays * 24 * 60 * 60 * 1e3;
+  return formatPhishstatsDate(new Date(ms));
+}
+__name(retentionCutoffIso, "retentionCutoffIso");
+async function purgeOlderThan(env, cutoffIso, batchSize, maxRounds) {
+  let total = 0;
+  for (let round = 0; round < maxRounds; round++) {
+    const result = await env.DB.prepare(DELETE_PHISHING_OLDER_THAN_SQL).bind(cutoffIso, batchSize).run();
+    const deleted = result.meta?.changes ?? 0;
+    if (deleted === 0) {
+      break;
+    }
+    total += deleted;
+  }
+  return total;
+}
+__name(purgeOlderThan, "purgeOlderThan");
 var src_default = {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
@@ -503,6 +566,26 @@ var src_default = {
       return jsonResponse({ error: "method_not_allowed" }, 405);
     }
     const url = new URL(request.url);
+    const path = normalizePathname(url.pathname);
+    if (path === "/victim-list") {
+      try {
+        const lim = parseVictimListLimit(url);
+        const { results } = await env.DB.prepare(ISP_STATS_BY_ISP_SQL).bind(lim).all();
+        const rows = (results ?? []).map((r) => ({
+          isp: String(r.isp ?? ""),
+          incident_count: Number(r.incident_count ?? 0),
+          avg_score: Number(r.avg_score ?? 0),
+          max_score: Number(r.max_score ?? 0)
+        }));
+        return jsonResponse(rows);
+      } catch (e) {
+        console.error("victim-list: D1 query failed", e);
+        return jsonResponse({ error: "database_error" }, 502);
+      }
+    }
+    if (path !== "/") {
+      return jsonResponse({ error: "not_found" }, 404);
+    }
     const limit = parseMapLimit(url);
     const mapMode = (url.searchParams.get("mode") ?? "").toLowerCase();
     const filters = {
@@ -558,6 +641,21 @@ var src_default = {
       console.log(
         `phishstats-ingest: done, total rows this run: ${totalUpserted}, batches: ${batches}`
       );
+      const purgeCfg = getPurgeConfig(env);
+      if (purgeCfg.retentionDays > 0) {
+        const cutoff = retentionCutoffIso(purgeCfg.retentionDays);
+        const removed = await purgeOlderThan(
+          env,
+          cutoff,
+          purgeCfg.batchSize,
+          purgeCfg.maxRounds
+        );
+        console.log(
+          `phishstats-retention: removed ${removed} row(s) with date < ${cutoff} (retention ${purgeCfg.retentionDays}d, batch ${purgeCfg.batchSize})`
+        );
+      } else {
+        console.log("phishstats-retention: skipped (RETENTION_DAYS is 0)");
+      }
     } catch (e) {
       console.error("phishstats-ingest: fatal", e);
       throw e;
@@ -583,7 +681,7 @@ var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "drainBody");
 var middleware_ensure_req_body_drained_default = drainBody;
 
-// .wrangler/tmp/bundle-E9D82L/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-E1EGT0/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default
 ];
@@ -614,7 +712,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-E9D82L/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-E1EGT0/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

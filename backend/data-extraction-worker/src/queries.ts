@@ -143,3 +143,26 @@ FROM map_grid_cells
 ORDER BY point_count DESC
 LIMIT ?
 `.trim();
+
+/** Top ISPs by incident volume (phishing_links.isp, score). LIMIT bound param. */
+export const ISP_STATS_BY_ISP_SQL = `
+SELECT
+    isp,
+    COUNT(*) AS incident_count,
+    ROUND(AVG(score), 2) AS avg_score,
+    ROUND(MAX(score), 2) AS max_score
+FROM phishing_links
+WHERE isp IS NOT NULL
+  AND TRIM(isp) <> ''
+GROUP BY isp
+ORDER BY incident_count DESC, avg_score DESC
+LIMIT ?
+`.trim();
+
+/** Delete oldest rows by incident date (lexicographic ISO aligned with formatPhishstatsDate). */
+export const DELETE_PHISHING_OLDER_THAN_SQL = `
+DELETE FROM phishing_links
+WHERE date IS NOT NULL
+  AND date < ?
+LIMIT ?
+`.trim();
